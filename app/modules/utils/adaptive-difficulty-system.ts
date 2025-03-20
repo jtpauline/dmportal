@@ -1,167 +1,213 @@
+import { Campaign } from '../campaigns';
 import { Character } from '../characters';
-import { Monster } from '../monsters';
-import { RandomGenerator } from './random-generator';
-import { EncounterScalingSystem } from './encounter-scaling-system';
+import { Encounter } from '../encounters';
+import { EncounterComplexityAnalyzer } from './encounter-complexity-analyzer';
 
-export interface AdaptiveDifficultyOptions {
+export interface DifficultyAdjustmentParameters {
+  campaign: Campaign;
   characters: Character[];
-  currentEncounter: {
-    monsters: Monster[];
-    difficulty: 'Easy' | 'Medium' | 'Hard' | 'Deadly';
-  };
-  playerPerformance?: {
-    averageHealthRemaining?: number;
-    resourceUtilization?: number;
-    tacticalEffectiveness?: number;
-  };
-  campaignContext?: {
-    progressionStage: number;
-    previousEncounterOutcome?: 'Victory' | 'Defeat' | 'Narrow Escape';
-  };
-}
-
-export interface AdaptiveDifficultyResult {
-  adjustedMonsters: Monster[];
-  difficultyFeedback: {
-    overallDifficultyAdjustment: number;
-    recommendedPlayerStrategies: string[];
-    potentialChallenges: string[];
-  };
+  currentEncounter: Encounter;
 }
 
 export class AdaptiveDifficultySystem {
   /**
-   * Dynamically adjust encounter difficulty
-   * @param options Adaptive difficulty parameters
-   * @returns Adjusted encounter with difficulty feedback
+   * Dynamically Adjust Encounter Difficulty
    */
-  static adjustDifficulty(
-    options: AdaptiveDifficultyOptions
-  ): AdaptiveDifficultyResult {
-    // Analyze player performance
-    const performanceMetrics = this.analyzePlayerPerformance(options);
-
-    // Scale encounter based on performance and context
-    const scaledEncounter = EncounterScalingSystem.scaleEncounter({
-      characters: options.characters,
-      baseEncounter: options.currentEncounter,
-      scalingFactors: {
-        campaignProgressionStage: options.campaignContext?.progressionStage,
-        previousEncounterOutcomes: options.campaignContext?.previousEncounterOutcome,
-        playerExperience: this.determinePlayerExperienceLevel(options.characters)
-      }
-    });
-
-    // Generate adaptive difficulty feedback
-    const difficultyFeedback = this.generateDifficultyFeedback(
-      performanceMetrics, 
-      scaledEncounter
+  static adjustEncounterDifficulty(
+    params: DifficultyAdjustmentParameters
+  ): Encounter {
+    const complexityMetrics = EncounterComplexityAnalyzer.analyzeEncounterComplexity(
+      params.currentEncounter, 
+      params.characters
     );
 
-    return {
-      adjustedMonsters: scaledEncounter.scaledMonsters,
-      difficultyFeedback: {
-        overallDifficultyAdjustment: scaledEncounter.difficultyAdjustment,
-        recommendedPlayerStrategies: scaledEncounter.recommendedTactics,
-        potentialChallenges: [
-          ...scaledEncounter.potentialChallenges,
-          ...difficultyFeedback.additionalChallenges
-        ]
-      }
-    };
+    // Adjust based on campaign progression and player performance
+    const campaignMomentum = this.calculateCampaignMomentum(params.campaign);
+    const playerPerformance = this.assessPlayerPerformance(params.characters);
+
+    // Difficulty Scaling Mechanism
+    const difficultyScalingFactors = [
+      this.scaleMonsterAttributes(params.currentEncounter, complexityMetrics),
+      this.modifyEncounterEnvironment(params.currentEncounter, campaignMomentum),
+      this.adjustMonsterTactics(params.currentEncounter, playerPerformance)
+    ];
+
+    return params.currentEncounter;
   }
 
   /**
-   * Analyze player performance metrics
-   * @param options Adaptive difficulty options
-   * @returns Performance analysis
+   * Calculate Campaign Momentum
    */
-  private static analyzePlayerPerformance(
-    options: AdaptiveDifficultyOptions
-  ): {
-    healthPerformance: number;
-    resourceEfficiency: number;
-    tacticalScore: number;
-  } {
-    const { playerPerformance } = options;
+  private static calculateCampaignMomentum(campaign: Campaign): number {
+    const xpProgressFactor = campaign.xpTracker.totalXP / 
+      (campaign.xpTracker.xpThresholds[campaign.metadata.averagePartyLevel + 1] || 1);
+    
+    const sessionsProgressFactor = campaign.metadata.sessionsPlayed / 10;
+    const characterProgressFactor = campaign.characters.reduce(
+      (sum, char) => sum + (char.level / 20), 
+      0
+    ) / campaign.characters.length;
 
-    return {
-      healthPerformance: playerPerformance?.averageHealthRemaining ?? 0.5,
-      resourceEfficiency: playerPerformance?.resourceUtilization ?? 0.5,
-      tacticalScore: playerPerformance?.tacticalEffectiveness ?? 0.5
-    };
+    return (xpProgressFactor + sessionsProgressFactor + characterProgressFactor) / 3;
   }
 
   /**
-   * Determine player experience level
-   * @param characters Player characters
-   * @returns Player experience level
+   * Assess Player Performance
    */
-  private static determinePlayerExperienceLevel(
-    characters: Character[]
-  ): 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' {
-    const averageLevel = characters.reduce((sum, char) => sum + char.level, 0) / characters.length;
-    const multiclassCount = characters.filter(c => 
-      c.multiclassLevels && c.multiclassLevels.length > 0
-    ).length;
+  private static assessPlayerPerformance(characters: Character[]): number {
+    const performanceMetrics = characters.map(character => {
+      const skillPerformance = Object.values(character.skills)
+        .reduce((sum, skillLevel) => sum + skillLevel, 0) / 10;
+      
+      const combatEffectiveness = (character.baseAttackBonus + character.level) / 20;
+      
+      return (skillPerformance + combatEffectiveness) / 2;
+    });
 
-    if (averageLevel < 3 && multiclassCount === 0) return 'Beginner';
-    if (averageLevel < 7) return 'Intermediate';
-    if (averageLevel < 12) return 'Advanced';
-    return 'Expert';
+    return performanceMetrics.reduce((sum, metric) => sum + metric, 0) / performanceMetrics.length;
   }
 
   /**
-   * Generate difficulty feedback
-   * @param performanceMetrics Player performance metrics
-   * @param scaledEncounter Scaled encounter details
-   * @returns Difficulty feedback
+   * Scale Monster Attributes
    */
-  private static generateDifficultyFeedback(
-    performanceMetrics: ReturnType<typeof this.analyzePlayerPerformance>,
-    scaledEncounter: any
-  ): {
-    additionalChallenges: string[];
-    strategicRecommendations: string[];
-  } {
-    const additionalChallenges: string[] = [];
-    const strategicRecommendations: string[] = [];
+  private static scaleMonsterAttributes(
+    encounter: Encounter, 
+    complexityMetrics: ReturnType<typeof EncounterComplexityAnalyzer.analyzeEncounterComplexity>
+  ): Encounter {
+    encounter.monsters = encounter.monsters.map(monster => {
+      const scaleFactor = this.calculateScaleFactor(complexityMetrics.difficultyLevel);
+      
+      return {
+        ...monster,
+        hitPoints: Math.round(monster.hitPoints * scaleFactor),
+        armorClass: Math.round(monster.armorClass * scaleFactor),
+        attackBonus: Math.round(monster.attackBonus * scaleFactor)
+      };
+    });
 
-    // Analyze health performance
-    if (performanceMetrics.healthPerformance < 0.3) {
-      additionalChallenges.push(
-        'High risk of character incapacitation',
-        'Consider defensive tactical approaches'
-      );
-    }
+    return encounter;
+  }
 
-    // Analyze resource efficiency
-    if (performanceMetrics.resourceEfficiency < 0.4) {
-      strategicRecommendations.push(
-        'Optimize resource management',
-        'Conserve high-impact abilities for critical moments'
-      );
-    }
-
-    // Analyze tactical effectiveness
-    if (performanceMetrics.tacticalScore < 0.5) {
-      additionalChallenges.push(
-        'Tactical coordination needs improvement',
-        'Focus on synergistic character abilities'
-      );
-    }
-
-    // Add scaled encounter challenges
-    if (scaledEncounter.difficultyAdjustment > 1.2) {
-      additionalChallenges.push(
-        'Encounter difficulty has been significantly increased',
-        'Expect more complex and challenging combat scenarios'
-      );
-    }
-
-    return {
-      additionalChallenges,
-      strategicRecommendations
+  /**
+   * Calculate Scale Factor
+   */
+  private static calculateScaleFactor(difficultyLevel: string): number {
+    const scaleFactors = {
+      'Easy': 0.8,
+      'Medium': 1,
+      'Hard': 1.2,
+      'Deadly': 1.5
     };
+
+    return scaleFactors[difficultyLevel] || 1;
+  }
+
+  /**
+   * Modify Encounter Environment
+   */
+  private static modifyEncounterEnvironment(
+    encounter: Encounter, 
+    campaignMomentum: number
+  ): Encounter {
+    const environmentModifiers = [
+      () => this.adjustTerrainComplexity(encounter, campaignMomentum),
+      () => this.introduceDynamicEnvironmentalElements(encounter),
+      () => this.modifyLightingConditions(encounter)
+    ];
+
+    const selectedModifier = environmentModifiers[
+      Math.floor(Math.random() * environmentModifiers.length)
+    ];
+
+    return selectedModifier();
+  }
+
+  /**
+   * Adjust Terrain Complexity
+   */
+  private static adjustTerrainComplexity(
+    encounter: Encounter, 
+    campaignMomentum: number
+  ): Encounter {
+    const terrainComplexityMap = {
+      'forest': ['dense undergrowth', 'fallen trees', 'uneven ground'],
+      'mountain': ['steep cliffs', 'loose rocks', 'narrow paths'],
+      'underground': ['narrow passages', 'unstable cavern', 'multiple levels'],
+      'urban': ['complex architecture', 'multiple elevation levels', 'narrow streets']
+    };
+
+    if (campaignMomentum > 0.7) {
+      const complexityOptions = terrainComplexityMap[encounter.terrain] || [];
+      encounter.terrainComplexity = complexityOptions[
+        Math.floor(Math.random() * complexityOptions.length)
+      ];
+    }
+
+    return encounter;
+  }
+
+  /**
+   * Introduce Dynamic Environmental Elements
+   */
+  private static introduceDynamicEnvironmentalElements(encounter: Encounter): Encounter {
+    const dynamicElements = [
+      'Falling debris',
+      'Magical energy fluctuations',
+      'Sudden weather changes',
+      'Collapsing structures'
+    ];
+
+    if (Math.random() > 0.6) {
+      encounter.dynamicEnvironmentalElements = dynamicElements[
+        Math.floor(Math.random() * dynamicElements.length)
+      ];
+    }
+
+    return encounter;
+  }
+
+  /**
+   * Modify Lighting Conditions
+   */
+  private static modifyLightingConditions(encounter: Encounter): Encounter {
+    const lightingOptions = ['bright', 'dim', 'darkness'];
+    encounter.lightingConditions = lightingOptions[
+      Math.floor(Math.random() * lightingOptions.length)
+    ];
+
+    return encounter;
+  }
+
+  /**
+   * Adjust Monster Tactics
+   */
+  private static adjustMonsterTactics(
+    encounter: Encounter, 
+    playerPerformance: number
+  ): Encounter {
+    if (playerPerformance > 0.7) {
+      encounter.monsters = encounter.monsters.map(monster => ({
+        ...monster,
+        tacticalApproach: this.selectAdvancedTactics()
+      }));
+    }
+
+    return encounter;
+  }
+
+  /**
+   * Select Advanced Tactical Approaches
+   */
+  private static selectAdvancedTactics(): string {
+    const tacticalApproaches = [
+      'Coordinated Assault',
+      'Defensive Positioning',
+      'Targeted Elimination',
+      'Adaptive Strategy'
+    ];
+
+    return tacticalApproaches[
+      Math.floor(Math.random() * tacticalApproaches.length)
+    ];
   }
 }

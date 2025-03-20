@@ -1,162 +1,206 @@
 import { Spell } from '../spells';
 import { Character } from '../characters';
+import { SpellInteractionAnalysis } from './spell-interaction-analyzer';
 import { EnvironmentalContext } from './spell-interaction-analyzer';
 
-/**
- * Represents a single training data point for machine learning
- */
 export interface MLTrainingDataPoint {
   primarySpell: Spell;
   secondarySpell: Spell;
   character: Character;
   context: EnvironmentalContext;
-  performanceMetrics: {
-    damageDealt: number;
-    resourceEfficiency: number;
-    tacticalAdvantage: number;
-  };
-  outcome: 'success' | 'neutral' | 'failure';
+  outcome: SpellInteractionAnalysis;
+  timestamp: number;
+  campaignId?: string;
 }
 
-/**
- * Manages collection and analysis of machine learning training data
- */
 export class MLTrainingDataCollector {
-  // In-memory storage for training data
   private static trainingDataset: MLTrainingDataPoint[] = [];
+  private static maxDatasetSize = 10000;
 
   /**
-   * Record a new training data point
-   * @param dataPoint Training data point to record
+   * Collect spell interaction data for machine learning
+   * @param dataPoint Spell interaction training data point
    */
-  static recordTrainingData(dataPoint: MLTrainingDataPoint): void {
-    this.trainingDataset.push(dataPoint);
-    this.validateAndCleanDataset();
+  static collectTrainingData(dataPoint: MLTrainingDataPoint): void {
+    // Ensure unique data points
+    const existingDataPointIndex = this.trainingDataset.findIndex(
+      existing => 
+        existing.primarySpell.name === dataPoint.primarySpell.name &&
+        existing.secondarySpell.name === dataPoint.secondarySpell.name &&
+        existing.character.id === dataPoint.character.id
+    );
+
+    if (existingDataPointIndex !== -1) {
+      // Replace existing data point if it exists
+      this.trainingDataset[existingDataPointIndex] = dataPoint;
+    } else {
+      // Add new data point
+      this.trainingDataset.push(dataPoint);
+    }
+
+    // Manage dataset size
+    if (this.trainingDataset.length > this.maxDatasetSize) {
+      this.pruneOldestDataPoints();
+    }
   }
 
   /**
-   * Validate and clean the training dataset
-   * Removes duplicate or invalid entries
+   * Prune oldest data points to maintain dataset size
    */
-  private static validateAndCleanDataset(): void {
-    // Remove exact duplicates
-    this.trainingDataset = Array.from(
-      new Set(this.trainingDataset.map(JSON.stringify))
-    ).map(JSON.parse);
-
-    // Optional: Implement more advanced data cleaning
-    // - Remove outliers
-    // - Normalize performance metrics
-    // - Validate data integrity
+  private static pruneOldestDataPoints(): void {
+    // Sort by timestamp and remove oldest entries
+    this.trainingDataset.sort((a, b) => a.timestamp - b.timestamp);
+    this.trainingDataset = this.trainingDataset.slice(-this.maxDatasetSize);
   }
 
   /**
-   * Get comprehensive dataset statistics
-   * @returns Detailed dataset statistics
+   * Get current training dataset
+   * @returns Current ML training dataset
    */
-  static getDatasetStatistics() {
-    return {
-      totalDataPoints: this.trainingDataset.length,
-      outcomeDistribution: this.computeOutcomeDistribution(),
-      spellSchoolDistribution: this.computeSpellSchoolDistribution(),
-      performanceMetricsSummary: this.computePerformanceMetricsSummary()
-    };
+  static getTrainingDataset(): MLTrainingDataPoint[] {
+    return [...this.trainingDataset];
   }
 
   /**
-   * Compute outcome distribution
-   * @returns Distribution of interaction outcomes
+   * Filter training data based on specific criteria
+   * @param filters Filtering criteria
+   * @returns Filtered training dataset
    */
-  private static computeOutcomeDistribution() {
-    return this.trainingDataset.reduce((dist, dataPoint) => {
-      dist[dataPoint.outcome] = (dist[dataPoint.outcome] || 0) + 1;
-      return dist;
-    }, { success: 0, neutral: 0, failure: 0 });
+  static filterTrainingData(filters: Partial<MLTrainingDataPoint>): MLTrainingDataPoint[] {
+    return this.trainingDataset.filter(dataPoint => {
+      return Object.entries(filters).every(([key, value]) => {
+        // Deep comparison for nested objects
+        if (typeof value === 'object' && value !== null) {
+          return Object.entries(value).every(([nestedKey, nestedValue]) => 
+            dataPoint[key as keyof MLTrainingDataPoint]?.[nestedKey as keyof object] === nestedValue
+          );
+        }
+        return dataPoint[key as keyof MLTrainingDataPoint] === value;
+      });
+    });
   }
 
   /**
-   * Compute spell school distribution
-   * @returns Distribution of spell schools in interactions
+   * Generate synthetic training data for initial model training
+   * @returns Synthetic ML training dataset
    */
-  private static computeSpellSchoolDistribution() {
-    return this.trainingDataset.reduce((dist, dataPoint) => {
-      const primarySchool = dataPoint.primarySpell.school;
-      const secondarySchool = dataPoint.secondarySpell.school;
-      
-      dist[primarySchool] = (dist[primarySchool] || 0) + 1;
-      dist[secondarySchool] = (dist[secondarySchool] || 0) + 1;
-      
-      return dist;
-    }, {});
-  }
+  static generateSyntheticTrainingData(): MLTrainingDataPoint[] {
+    const syntheticSpells: Spell[] = [
+      { 
+        name: 'Fireball', 
+        school: 'Evocation', 
+        level: 3, 
+        type: 'Damage',
+        tags: ['offensive', 'area-of-effect']
+      },
+      { 
+        name: 'Shield', 
+        school: 'Abjuration', 
+        level: 1, 
+        type: 'Protection',
+        tags: ['defensive', 'self-buff']
+      },
+      { 
+        name: 'Haste', 
+        school: 'Transmutation', 
+        level: 3, 
+        type: 'Buff',
+        tags: ['enhancement', 'movement']
+      },
+      { 
+        name: 'Healing Word', 
+        school: 'Conjuration', 
+        level: 1, 
+        type: 'Healing',
+        tags: ['restoration', 'support']
+      }
+    ];
 
-  /**
-   * Compute performance metrics summary
-   * @returns Summary of performance metrics
-   */
-  private static computePerformanceMetricsSummary() {
-    const summary = {
-      damageDealt: { min: Infinity, max: -Infinity, avg: 0 },
-      resourceEfficiency: { min: Infinity, max: -Infinity, avg: 0 },
-      tacticalAdvantage: { min: Infinity, max: -Infinity, avg: 0 }
-    };
+    const syntheticCharacters: Character[] = [
+      {
+        id: 'wizard-1',
+        name: 'Arcane Researcher',
+        class: 'Wizard',
+        level: 10,
+        intelligence: 18,
+        wisdom: 16
+      },
+      {
+        id: 'cleric-1',
+        name: 'Divine Healer',
+        class: 'Cleric',
+        level: 8,
+        wisdom: 17,
+        intelligence: 14
+      }
+    ];
 
-    this.trainingDataset.forEach(dataPoint => {
-      const metrics = dataPoint.performanceMetrics;
-      
-      ['damageDealt', 'resourceEfficiency', 'tacticalAdvantage'].forEach(metric => {
-        const value = metrics[metric];
-        summary[metric].min = Math.min(summary[metric].min, value);
-        summary[metric].max = Math.max(summary[metric].max, value);
-        summary[metric].avg += value;
+    const syntheticDataset: MLTrainingDataPoint[] = [];
+
+    // Generate combinations
+    syntheticSpells.forEach((primarySpell, primaryIndex) => {
+      syntheticSpells.forEach((secondarySpell, secondaryIndex) => {
+        if (primaryIndex !== secondaryIndex) {
+          syntheticCharacters.forEach(character => {
+            const dataPoint: MLTrainingDataPoint = {
+              primarySpell,
+              secondarySpell,
+              character,
+              context: {
+                terrain: 'dungeon',
+                combatDifficulty: 'moderate',
+                partyComposition: ['Wizard', 'Cleric']
+              },
+              outcome: {
+                compatibilityScore: Math.random() * 10,
+                interactionType: 
+                  primarySpell.school === secondarySpell.school ? 'synergy' : 
+                  primarySpell.type !== secondarySpell.type ? 'neutral' : 'conflict',
+                contextualEffectiveness: {
+                  terrain: Math.random(),
+                  combatDifficulty: Math.random()
+                },
+                potentialOutcomes: [
+                  `Combination of ${primarySpell.name} and ${secondarySpell.name}`
+                ],
+                riskFactors: ['Standard magical interaction']
+              },
+              timestamp: Date.now()
+            };
+
+            syntheticDataset.push(dataPoint);
+          });
+        }
       });
     });
 
-    // Compute averages
-    const datasetLength = this.trainingDataset.length;
-    ['damageDealt', 'resourceEfficiency', 'tacticalAdvantage'].forEach(metric => {
-      summary[metric].avg /= datasetLength;
-    });
-
-    return summary;
+    return syntheticDataset;
   }
 
   /**
-   * Export training dataset
-   * @param format Export format
-   * @returns Exported dataset
+   * Export training dataset for external use
+   * @returns Exported training dataset
    */
-  static exportTrainingDataset(format: 'json' | 'csv' = 'json'): string {
-    if (format === 'json') {
-      return JSON.stringify(this.trainingDataset, null, 2);
-    }
-
-    // Basic CSV export
-    const headers = [
-      'primary_spell', 'secondary_spell', 
-      'character', 'context', 
-      'damage_dealt', 'resource_efficiency', 'tactical_advantage', 
-      'outcome'
-    ];
-
-    const csvRows = this.trainingDataset.map(dataPoint => [
-      dataPoint.primarySpell.name,
-      dataPoint.secondarySpell.name,
-      dataPoint.character.name,
-      dataPoint.context.terrain,
-      dataPoint.performanceMetrics.damageDealt,
-      dataPoint.performanceMetrics.resourceEfficiency,
-      dataPoint.performanceMetrics.tacticalAdvantage,
-      dataPoint.outcome
-    ].join(','));
-
-    return [headers.join(','), ...csvRows].join('\n');
-  }
-
-  /**
-   * Clear the entire training dataset
-   */
-  static clearTrainingDataset(): void {
-    this.trainingDataset = [];
+  static exportTrainingDataset(): {
+    datasetSize: number;
+    uniqueSpells: string[];
+    uniqueCharacterClasses: string[];
+    dateRange: { start: number; end: number };
+  } {
+    return {
+      datasetSize: this.trainingDataset.length,
+      uniqueSpells: [
+        ...new Set(this.trainingDataset.flatMap(
+          data => [data.primarySpell.name, data.secondarySpell.name]
+        ))
+      ],
+      uniqueCharacterClasses: [
+        ...new Set(this.trainingDataset.map(data => data.character.class))
+      ],
+      dateRange: {
+        start: Math.min(...this.trainingDataset.map(data => data.timestamp)),
+        end: Math.max(...this.trainingDataset.map(data => data.timestamp))
+      }
+    };
   }
 }

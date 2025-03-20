@@ -1,205 +1,210 @@
-import { Monster } from '../monsters';
 import { Character } from '../characters';
-import { RandomGenerator } from './random-generator';
+import { Monster } from '../monsters';
+import { Encounter } from '../encounters';
 
-export interface ComplexityAnalysisReport {
-  overallComplexity: number;
-  monsterDiversity: number;
-  abilityComplexity: number;
+export interface EncounterComplexityMetrics {
+  challengeRating: number;
+  difficultyLevel: 'Easy' | 'Medium' | 'Hard' | 'Deadly';
+  tacticalComplexity: number;
   environmentalImpact: number;
-  characterSynergyPotential: number;
-  recommendedTactics: string[];
-  potentialChallenges: string[];
 }
 
 export class EncounterComplexityAnalyzer {
   /**
-   * Comprehensive encounter complexity analysis
-   * @param monsters Encounter monsters
-   * @param characters Player characters
-   * @returns Detailed complexity analysis report
+   * Analyze Encounter Complexity
    */
   static analyzeEncounterComplexity(
-    monsters: Monster[], 
+    encounter: Encounter, 
     characters: Character[]
-  ): ComplexityAnalysisReport {
-    const monsterDiversity = this.calculateMonsterDiversity(monsters);
-    const abilityComplexity = this.calculateAbilityComplexity(monsters);
-    const characterSynergy = this.assessCharacterSynergy(characters);
-    const environmentalComplexity = this.calculateEnvironmentalComplexity();
-
-    const overallComplexity = this.calculateOverallComplexity({
-      monsterDiversity,
-      abilityComplexity,
-      characterSynergy,
-      environmentalComplexity
-    });
+  ): EncounterComplexityMetrics {
+    const challengeRating = this.calculateChallengeRating(encounter.monsters, characters);
+    const difficultyLevel = this.determineDifficultyLevel(challengeRating, characters);
+    const tacticalComplexity = this.calculateTacticalComplexity(encounter);
+    const environmentalImpact = this.assessEnvironmentalImpact(encounter);
 
     return {
-      overallComplexity,
-      monsterDiversity,
-      abilityComplexity,
-      environmentalImpact: environmentalComplexity,
-      characterSynergyPotential: characterSynergy,
-      recommendedTactics: this.generateRecommendedTactics(overallComplexity),
-      potentialChallenges: this.identifyPotentialChallenges(
-        monsters, 
-        characters, 
-        overallComplexity
-      )
+      challengeRating,
+      difficultyLevel,
+      tacticalComplexity,
+      environmentalImpact
     };
   }
 
   /**
-   * Calculate monster type diversity
-   * @param monsters Encounter monsters
-   * @returns Monster diversity score
+   * Calculate Challenge Rating
    */
-  private static calculateMonsterDiversity(monsters: Monster[]): number {
-    const uniqueMonsterTypes = new Set(monsters.map(m => m.type)).size;
-    const uniqueMonsterChallengeRatings = new Set(
-      monsters.map(m => Math.floor(m.challengeRating))
-    ).size;
-
-    return Math.min(10, uniqueMonsterTypes * 2 + uniqueMonsterChallengeRatings);
-  }
-
-  /**
-   * Calculate monster ability complexity
-   * @param monsters Encounter monsters
-   * @returns Ability complexity score
-   */
-  private static calculateAbilityComplexity(monsters: Monster[]): number {
-    const specialAbilitiesCount = monsters.reduce(
-      (sum, monster) => sum + (monster.specialAbilities?.length || 0), 
-      0
-    );
-
-    const uniqueAbilityTypes = new Set(
-      monsters.flatMap(m => 
-        m.specialAbilities?.map(a => a.name.toLowerCase()) || []
-      )
-    ).size;
-
-    return Math.min(10, specialAbilitiesCount * 0.5 + uniqueAbilityTypes * 1.5);
-  }
-
-  /**
-   * Assess character synergy potential
-   * @param characters Player characters
-   * @returns Character synergy score
-   */
-  private static assessCharacterSynergy(characters: Character[]): number {
-    const multiclassCharacters = characters.filter(
-      c => c.multiclassLevels && c.multiclassLevels.length > 0
-    );
-
-    const uniqueClasses = new Set(
-      characters.map(c => c.class)
-    ).size;
-
-    const synergyScore = (
-      uniqueClasses * 1.5 + 
-      multiclassCharacters.length * 2
-    );
-
-    return Math.min(10, synergyScore);
-  }
-
-  /**
-   * Calculate environmental complexity
-   * @returns Environmental complexity score
-   */
-  private static calculateEnvironmentalComplexity(): number {
-    const environmentalFactors = [
-      'Difficult Terrain',
-      'Magical Interference',
-      'Extreme Weather',
-      'Limited Visibility'
-    ];
-
-    // Simulate random environmental complexity
-    return RandomGenerator.randomInRange(2, 8);
-  }
-
-  /**
-   * Calculate overall encounter complexity
-   * @param complexityFactors Complexity calculation factors
-   * @returns Overall complexity score
-   */
-  private static calculateOverallComplexity(complexityFactors: {
-    monsterDiversity: number;
-    abilityComplexity: number;
-    characterSynergy: number;
-    environmentalComplexity: number;
-  }): number {
-    const { 
-      monsterDiversity, 
-      abilityComplexity, 
-      characterSynergy,
-      environmentalComplexity 
-    } = complexityFactors;
-
-    return Math.min(10, 
-      monsterDiversity * 0.3 + 
-      abilityComplexity * 0.3 + 
-      characterSynergy * 0.2 + 
-      environmentalComplexity * 0.2
-    );
-  }
-
-  /**
-   * Generate recommended tactics based on complexity
-   * @param overallComplexity Encounter complexity score
-   * @returns Array of recommended tactical approaches
-   */
-  private static generateRecommendedTactics(
-    overallComplexity: number
-  ): string[] {
-    const tacticTemplates = [
-      'Prioritize crowd control abilities',
-      'Focus on high-damage burst strategies',
-      'Maintain flexible positioning',
-      'Coordinate character abilities carefully',
-      'Prepare defensive countermeasures',
-      'Utilize environmental advantages',
-      'Manage resource allocation strategically'
-    ];
-
-    const tacticCount = Math.ceil(overallComplexity / 3);
-    
-    return RandomGenerator.selectUniqueFromArray(
-      tacticTemplates, 
-      tacticCount
-    );
-  }
-
-  /**
-   * Identify potential encounter challenges
-   * @param monsters Encounter monsters
-   * @param characters Player characters
-   * @param overallComplexity Encounter complexity score
-   * @returns Array of potential challenge descriptions
-   */
-  private static identifyPotentialChallenges(
+  private static calculateChallengeRating(
     monsters: Monster[], 
-    characters: Character[],
-    overallComplexity: number
-  ): string[] {
-    const challengeTemplates = [
-      'Manage multiple monster types with diverse abilities',
-      'Overcome significant ability complexity',
-      'Navigate challenging environmental conditions',
-      'Coordinate character abilities effectively',
-      'Adapt to unexpected monster tactics',
-      'Mitigate high-risk encounter scenarios'
+    characters: Character[]
+  ): number {
+    const averageCharacterLevel = characters.reduce((sum, char) => sum + char.level, 0) / characters.length;
+    const monsterThreatLevels = monsters.map(monster => 
+      monster.challengeRating || this.estimateMonsterThreat(monster)
+    );
+
+    const totalMonsterThreat = monsterThreatLevels.reduce((sum, threat) => sum + threat, 0);
+    const adjustedChallengeRating = totalMonsterThreat / monsterThreatLevels.length;
+
+    return Math.max(
+      adjustedChallengeRating, 
+      averageCharacterLevel * 0.8
+    );
+  }
+
+  /**
+   * Estimate Monster Threat Level
+   */
+  private static estimateMonsterThreat(monster: Monster): number {
+    const threatFactors = [
+      monster.hitPoints / 10,
+      monster.armorClass / 2,
+      monster.attackBonus / 3
     ];
 
-    const challengeCount = Math.ceil(overallComplexity / 2);
-    
-    return RandomGenerator.selectUniqueFromArray(
-      challengeTemplates, 
-      challengeCount
+    return threatFactors.reduce((sum, factor) => sum + factor, 0) / 3;
+  }
+
+  /**
+   * Determine Difficulty Level
+   */
+  private static determineDifficultyLevel(
+    challengeRating: number, 
+    characters: Character[]
+  ): 'Easy' | 'Medium' | 'Hard' | 'Deadly' {
+    const averageCharacterLevel = characters.reduce((sum, char) => sum + char.level, 0) / characters.length;
+    const difficultyRatio = challengeRating / averageCharacterLevel;
+
+    if (difficultyRatio < 0.5) return 'Easy';
+    if (difficultyRatio < 1) return 'Medium';
+    if (difficultyRatio < 1.5) return 'Hard';
+    return 'Deadly';
+  }
+
+  /**
+   * Calculate Tactical Complexity
+   */
+  private static calculateTacticalComplexity(encounter: Encounter): number {
+    const complexityFactors = [
+      this.assessMonsterAbilities(encounter.monsters),
+      this.evaluateTerrainTactics(encounter),
+      this.analyzeMonsterCoordination(encounter.monsters)
+    ];
+
+    return complexityFactors.reduce((sum, factor) => sum + factor, 0) / complexityFactors.length;
+  }
+
+  /**
+   * Assess Monster Special Abilities
+   */
+  private static assessMonsterAbilities(monsters: Monster[]): number {
+    const abilityComplexity = monsters.map(monster => 
+      monster.specialAbilities ? monster.specialAbilities.length * 0.5 : 0
     );
+
+    return abilityComplexity.reduce((sum, complexity) => sum + complexity, 0) / monsters.length;
+  }
+
+  /**
+   * Evaluate Terrain Tactical Opportunities
+   */
+  private static evaluateTerrainTactics(encounter: Encounter): number {
+    const terrainTacticalFactors = {
+      'forest': 0.7,
+      'mountain': 0.6,
+      'underground': 0.8,
+      'urban': 0.9
+    };
+
+    return terrainTacticalFactors[encounter.terrain] || 0.5;
+  }
+
+  /**
+   * Analyze Monster Coordination
+   */
+  private static analyzeMonsterCoordination(monsters: Monster[]): number {
+    if (monsters.length <= 1) return 0;
+
+    const coordinationFactors = [
+      this.checkMonsterTypeCoordination(monsters),
+      this.assessGroupTactics(monsters)
+    ];
+
+    return coordinationFactors.reduce((sum, factor) => sum + factor, 0) / coordinationFactors.length;
+  }
+
+  /**
+   * Check Monster Type Coordination
+   */
+  private static checkMonsterTypeCoordination(monsters: Monster[]): number {
+    const uniqueMonsterTypes = new Set(monsters.map(m => m.type));
+    return uniqueMonsterTypes.size === 1 ? 0.8 : 0.3;
+  }
+
+  /**
+   * Assess Group Tactics
+   */
+  private static assessGroupTactics(monsters: Monster[]): number {
+    const tacticalFormations = [
+      'Flanking Strategy',
+      'Defensive Formation',
+      'Ranged Support',
+      'Ambush Tactics'
+    ];
+
+    return Math.random() > 0.5 ? 0.7 : 0.2;
+  }
+
+  /**
+   * Assess Environmental Impact
+   */
+  private static assessEnvironmentalImpact(encounter: Encounter): number {
+    const environmentalFactors = [
+      this.evaluateTerrainDifficulty(encounter.terrain),
+      this.checkEnvironmentalHazards(encounter),
+      this.assessLightingConditions(encounter)
+    ];
+
+    return environmentalFactors.reduce((sum, factor) => sum + factor, 0) / environmentalFactors.length;
+  }
+
+  /**
+   * Evaluate Terrain Difficulty
+   */
+  private static evaluateTerrainDifficulty(terrain: string): number {
+    const terrainDifficulty = {
+      'forest': 0.6,
+      'mountain': 0.7,
+      'underground': 0.8,
+      'urban': 0.5
+    };
+
+    return terrainDifficulty[terrain] || 0.4;
+  }
+
+  /**
+   * Check Environmental Hazards
+   */
+  private static checkEnvironmentalHazards(encounter: Encounter): number {
+    const hazardTypes = [
+      'Difficult Terrain',
+      'Falling Rocks',
+      'Unstable Ground',
+      'Magical Interference'
+    ];
+
+    return Math.random() > 0.7 ? 0.6 : 0.2;
+  }
+
+  /**
+   * Assess Lighting Conditions
+   */
+  private static assessLightingConditions(encounter: Encounter): number {
+    const lightingFactors = {
+      'bright': 0.2,
+      'dim': 0.5,
+      'darkness': 0.8
+    };
+
+    return lightingFactors[encounter.lightingConditions] || 0.4;
   }
 }

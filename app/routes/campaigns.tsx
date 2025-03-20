@@ -1,4 +1,3 @@
-// This file will serve as a layout for campaign-related routes
 import { Outlet } from "@remix-run/react";
 
 export default function CampaignsLayout() {
@@ -15,3 +14,5 @@ export function meta() {
     { name: "description", content: "Manage your D&D campaigns" }
   ];
 }
+
+// Remove any route-specific loader or actions to prevent conflicts

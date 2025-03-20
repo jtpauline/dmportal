@@ -1,59 +1,88 @@
 import React from 'react';
-import { SpellInteractionVisualizer } from '~/modules/utils/spell-interaction-visualization';
-import { Spell } from '~/modules/spells';
+import { SpellInteractionComplexityMetrics } from '~/modules/utils/spell-interaction-complexity-analyzer';
 
 interface SpellInteractionComplexityDisplayProps {
-  primarySpell: Spell;
-  secondarySpell: Spell;
+  complexityMetrics: SpellInteractionComplexityMetrics;
 }
 
-export const SpellInteractionComplexityDisplay: React.FC<SpellInteractionComplexityDisplayProps> = ({ 
-  primarySpell, 
-  secondarySpell 
+const SpellInteractionComplexityDisplay: React.FC<SpellInteractionComplexityDisplayProps> = ({ 
+  complexityMetrics 
 }) => {
-  const complexityData = SpellInteractionVisualizer.calculateInteractionComplexity(
-    primarySpell, 
-    secondarySpell
-  );
-
-  const getComplexityColor = (score: number) => {
-    if (score >= 0.8) return 'bg-red-100 text-red-800';
-    if (score >= 0.6) return 'bg-orange-100 text-orange-800';
-    if (score >= 0.4) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-green-100 text-green-800';
+  const renderMetricBar = (value: number, label: string) => {
+    const percentage = value * 100;
+    const colorIntensity = Math.floor(value * 255);
+    
+    return (
+      <div className="complexity-metric mb-2">
+        <div className="flex justify-between mb-1">
+          <span className="text-sm font-medium">{label}</span>
+          <span className="text-sm font-medium">{percentage.toFixed(0)}%</span>
+        </div>
+        <div 
+          className="w-full bg-gray-200 rounded-full h-2.5"
+          style={{ 
+            boxShadow: `0 0 10px rgba(${colorIntensity}, 0, ${255 - colorIntensity}, 0.5)` 
+          }}
+        >
+          <div 
+            className="bg-blue-600 h-2.5 rounded-full" 
+            style={{ 
+              width: `${percentage}%`,
+              background: `linear-gradient(to right, 
+                rgba(${colorIntensity}, 0, ${255 - colorIntensity}, 0.8), 
+                rgba(${colorIntensity}, 0, ${255 - colorIntensity}, 0.5))`
+            }}
+          ></div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className={`
-      p-4 rounded-lg border 
-      ${getComplexityColor(complexityData.complexityScore)}
-    `}>
-      <h4 className="font-bold text-lg mb-2">
-        Spell Interaction Complexity
-      </h4>
+    <div className="spell-interaction-complexity-display p-4 bg-gray-50 rounded-lg shadow-md">
+      <h2 className="text-xl font-bold mb-4 text-gray-800">
+        Spell Interaction Complexity Analysis
+      </h2>
       
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-sm font-semibold">Overall Complexity</p>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-            <div 
-              className="bg-purple-600 h-2.5 rounded-full" 
-              style={{ width: `${complexityData.complexityScore * 100}%` }}
-            ></div>
-          </div>
-          <span className="text-xs">
-            {(complexityData.complexityScore * 100).toFixed(0)}%
-          </span>
-        </div>
+      <div className="complexity-metrics space-y-3">
+        {renderMetricBar(
+          complexityMetrics.overallComplexity, 
+          'Overall Complexity'
+        )}
+        
+        {renderMetricBar(
+          complexityMetrics.synergyComplexity, 
+          'Synergy Complexity'
+        )}
+        
+        {renderMetricBar(
+          complexityMetrics.unexpectedInteractionProbability, 
+          'Unexpected Interaction Risk'
+        )}
+        
+        {renderMetricBar(
+          complexityMetrics.magicalResonanceIntensity, 
+          'Magical Resonance Intensity'
+        )}
+        
+        {renderMetricBar(
+          complexityMetrics.interactionRiskFactor, 
+          'Interaction Risk Factor'
+        )}
+      </div>
 
-        <div>
-          <div className="text-xs">
-            <p>Level Difference: {(complexityData.complexityBreakdown.levelDifference * 100).toFixed(0)}%</p>
-            <p>School Interaction: {(complexityData.complexityBreakdown.schoolInteraction * 100).toFixed(0)}%</p>
-            <p>Resource Cost Variance: {(complexityData.complexityBreakdown.resourceCostVariance * 100).toFixed(0)}%</p>
-          </div>
-        </div>
+      <div className="complexity-insights mt-4 text-sm text-gray-600">
+        <p>
+          🔮 Magical Complexity Interpretation:
+          {complexityMetrics.overallComplexity > 0.7 
+            ? " High complexity detected. Proceed with caution!" 
+            : complexityMetrics.overallComplexity > 0.4 
+              ? " Moderate complexity. Strategic spell selection recommended." 
+              : " Low complexity. Spell interactions appear stable."}
+        </p>
       </div>
     </div>
   );
 };
+
+export default SpellInteractionComplexityDisplay;

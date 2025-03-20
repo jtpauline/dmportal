@@ -2,188 +2,279 @@ import { Spell } from '../spells';
 import { Character } from '../characters';
 import { EnvironmentalContext } from './spell-interaction-analyzer';
 import { SpellInteractionAnalysis } from './spell-interaction-analyzer';
-import { SpellInteractionCache } from './spell-interaction-cache';
-import { MLTrainingDataPoint, MLTrainingDataCollector } from './ml-training-data-collector';
-import { SpellInteractionMLExporter } from './spell-interaction-ml-exporter';
-import { SpellInteractionPluginManager } from './spell-interaction-plugin-system';
+import { MLTrainingDataPoint } from './ml-training-data-collector';
+import * as tf from '@tensorflow/tfjs';
+import * as brain from 'brain.js';
 
-export class AdvancedSpellInteractionMLPredictor {
-  // Advanced ML model simulation
-  private static trainingDataset: MLTrainingDataPoint[] = [];
-  private static modelConfidence: {
-    overall: number;
-    bySpellSchool: Record<string, number>;
-    byTerrain: Record<string, number>;
-  } = {
-    overall: 0.5,
-    bySpellSchool: {},
-    byTerrain: {}
-  };
+export class SpellInteractionMLPredictor {
+  private static tfModel: tf.Sequential | null = null;
+  private static brainModel: brain.NeuralNetwork | null = null;
 
   /**
-   * Train advanced ML model with comprehensive dataset
-   * @param trainingData Comprehensive spell interaction training data
+   * Prepare TensorFlow.js model for spell interaction prediction
+   * @param trainingData ML training dataset
    */
-  static trainAdvancedModel(trainingData: MLTrainingDataPoint[]): void {
-    // Accumulate and process training data
-    this.trainingDataset.push(...trainingData);
+  static async prepareTensorFlowModel(trainingData: MLTrainingDataPoint[]): Promise<void> {
+    // Preprocess training data
+    const { features, labels } = this.preprocessTrainingData(trainingData);
 
-    // Compute granular model confidence
-    this.computeAdvancedModelConfidence();
-
-    // Export dataset for potential external ML processing
-    const exportedDataset = SpellInteractionMLExporter.convertToMLDataset(this.trainingDataset);
-    const jsonExport = SpellInteractionMLExporter.exportDataset(exportedDataset, 'json');
+    // Create TensorFlow model
+    const model = tf.sequential();
     
-    // Optional: Log or store exported dataset
-    console.log('Exported ML Dataset:', jsonExport);
+    // Input layer
+    model.add(tf.layers.dense({
+      inputShape: [features[0].length],
+      units: 64,
+      activation: 'relu'
+    }));
+
+    // Hidden layers
+    model.add(tf.layers.dense({
+      units: 32,
+      activation: 'relu'
+    }));
+    model.add(tf.layers.dense({
+      units: 16,
+      activation: 'relu'
+    }));
+
+    // Output layer for compatibility score prediction
+    model.add(tf.layers.dense({
+      units: 1,
+      activation: 'sigmoid'
+    }));
+
+    // Compile model
+    model.compile({
+      optimizer: 'adam',
+      loss: 'meanSquaredError',
+      metrics: ['accuracy']
+    });
+
+    // Train model
+    const xs = tf.tensor2d(features);
+    const ys = tf.tensor2d(labels.map(l => [l]));
+
+    await model.fit(xs, ys, {
+      epochs: 50,
+      batchSize: 32,
+      callbacks: {
+        onEpochEnd: (epoch, logs) => {
+          console.log(`Epoch ${epoch}: loss = ${logs?.loss}`);
+        }
+      }
+    });
+
+    this.tfModel = model;
   }
 
   /**
-   * Compute advanced model confidence with multi-dimensional analysis
+   * Prepare Brain.js neural network for spell interaction prediction
+   * @param trainingData ML training dataset
    */
-  private static computeAdvancedModelConfidence(): void {
-    // Overall confidence based on dataset size
-    this.modelConfidence.overall = Math.min(
-      this.trainingDataset.length / 5000, 
-      0.9
-    );
+  static prepareBrainModel(trainingData: MLTrainingDataPoint[]): void {
+    const { features, labels } = this.preprocessTrainingData(trainingData);
 
-    // Spell school-specific confidence
-    const spellSchoolConfidence = this.trainingDataset.reduce((acc, dataPoint) => {
-      const school = dataPoint.primarySpell.school;
-      acc[school] = (acc[school] || 0) + 1;
-      return acc;
-    }, {});
+    // Normalize data
+    const normalizedData = features.map((feature, index) => ({
+      input: feature,
+      output: [labels[index]]
+    }));
 
-    Object.keys(spellSchoolConfidence).forEach(school => {
-      this.modelConfidence.bySpellSchool[school] = 
-        Math.min(spellSchoolConfidence[school] / 500, 0.8);
+    // Create and train Brain.js neural network
+    const net = new brain.NeuralNetwork({
+      hiddenLayers: [64, 32, 16],
+      activation: 'sigmoid'
     });
 
-    // Terrain-specific confidence
-    const terrainConfidence = this.trainingDataset.reduce((acc, dataPoint) => {
-      const terrain = dataPoint.context.terrain;
-      acc[terrain] = (acc[terrain] || 0) + 1;
-      return acc;
-    }, {});
-
-    Object.keys(terrainConfidence).forEach(terrain => {
-      this.modelConfidence.byTerrain[terrain] = 
-        Math.min(terrainConfidence[terrain] / 300, 0.7);
+    net.train(normalizedData, {
+      iterations: 20000,
+      log: true,
+      logPeriod: 100
     });
+
+    this.brainModel = net;
   }
 
   /**
-   * Advanced spell interaction prediction with multi-dimensional analysis
+   * Preprocess training data for ML models
+   * @param trainingData Raw ML training data
+   * @returns Processed features and labels
+   */
+  private static preprocessTrainingData(trainingData: MLTrainingDataPoint[]): {
+    features: number[][];
+    labels: number[];
+  } {
+    return {
+      features: trainingData.map(dataPoint => [
+        // Spell features
+        dataPoint.primarySpell.level,
+        dataPoint.secondarySpell.level,
+        this.encodeSpellSchool(dataPoint.primarySpell.school),
+        this.encodeSpellSchool(dataPoint.secondarySpell.school),
+        
+        // Character features
+        dataPoint.character.level,
+        this.encodeCharacterClass(dataPoint.character.class),
+        
+        // Context features
+        this.encodeEnvironmentalTerrain(dataPoint.context.terrain),
+        this.encodeCombatDifficulty(dataPoint.context.combatDifficulty)
+      ]),
+      labels: trainingData.map(dataPoint => 
+        dataPoint.outcome.compatibilityScore / 10 // Normalize to 0-1 range
+      )
+    };
+  }
+
+  /**
+   * Predict spell interaction compatibility using ML models
    * @param primarySpell Primary spell
    * @param secondarySpell Secondary spell
    * @param character Casting character
    * @param context Environmental context
-   * @returns Advanced predicted spell interaction analysis
+   * @returns Predicted compatibility score
    */
-  static predictAdvancedSpellInteraction(
+  static predictSpellInteraction(
     primarySpell: Spell,
     secondarySpell: Spell,
     character: Character,
     context: EnvironmentalContext
-  ): SpellInteractionAnalysis {
-    // Retrieve cached analysis
-    const cachedAnalysis = SpellInteractionCache.analyzeSpellInteraction(
-      primarySpell, 
-      secondarySpell, 
-      character, 
-      context
-    );
-
-    // Process through interaction plugins
-    const pluginResults = SpellInteractionPluginManager.processSpellInteraction(
-      primarySpell,
-      secondarySpell,
-      character,
-      context
-    );
-
-    // Determine contextual confidence
-    const schoolConfidence = 
-      this.modelConfidence.bySpellSchool[primarySpell.school] || 0.5;
-    const terrainConfidence = 
-      this.modelConfidence.byTerrain[context.terrain] || 0.5;
-
-    // Advanced ML-based adjustments
-    if (schoolConfidence > 0.6 && terrainConfidence > 0.5) {
-      return this.applyAdvancedMLAdjustments(
-        cachedAnalysis, 
-        pluginResults,
-        schoolConfidence, 
-        terrainConfidence
-      );
+  ): { 
+    tfPrediction: number | null, 
+    brainPrediction: number | null 
+  } {
+    if (!this.tfModel || !this.brainModel) {
+      console.warn('ML models not initialized');
+      return { tfPrediction: null, brainPrediction: null };
     }
 
-    return cachedAnalysis;
+    const inputFeatures = [
+      primarySpell.level,
+      secondarySpell.level,
+      this.encodeSpellSchool(primarySpell.school),
+      this.encodeSpellSchool(secondarySpell.school),
+      character.level,
+      this.encodeCharacterClass(character.class),
+      this.encodeEnvironmentalTerrain(context.terrain),
+      this.encodeCombatDifficulty(context.combatDifficulty)
+    ];
+
+    // TensorFlow.js prediction
+    let tfPrediction = null;
+    if (this.tfModel) {
+      const inputTensor = tf.tensor2d([inputFeatures]);
+      const prediction = this.tfModel.predict(inputTensor) as tf.Tensor;
+      tfPrediction = prediction.dataSync()[0] * 10; // Denormalize back to 0-10 scale
+    }
+
+    // Brain.js prediction
+    let brainPrediction = null;
+    if (this.brainModel) {
+      const prediction = this.brainModel.run(inputFeatures);
+      brainPrediction = prediction[0] * 10; // Denormalize back to 0-10 scale
+    }
+
+    return { tfPrediction, brainPrediction };
   }
 
   /**
-   * Apply advanced ML-based adjustments to interaction analysis
-   * @param baseAnalysis Base interaction analysis
-   * @param pluginResults Plugin processing results
-   * @param schoolConfidence Spell school-specific confidence
-   * @param terrainConfidence Terrain-specific confidence
-   * @returns Enhanced interaction analysis
+   * Encode spell school to numerical representation
+   * @param school Spell school name
+   * @returns Numerical encoding
    */
-  private static applyAdvancedMLAdjustments(
-    baseAnalysis: SpellInteractionAnalysis,
-    pluginResults: any[],
-    schoolConfidence: number,
-    terrainConfidence: number
-  ): SpellInteractionAnalysis {
-    // Aggregate plugin adjustments
-    const pluginCompatibilityAdjustments = pluginResults.reduce(
-      (total, result) => total + (result.compatibilityScoreAdjustment || 0), 
-      0
-    );
-
-    // Compute dynamic adjustment factors
-    const confidenceMultiplier = 1 + (schoolConfidence * terrainConfidence);
-    
-    // Aggregate plugin insights and warnings
-    const additionalInsights = pluginResults.flatMap(
-      result => result.additionalInsights || []
-    );
-    const warningMessages = pluginResults.flatMap(
-      result => result.warningMessages || []
-    );
-
-    return {
-      ...baseAnalysis,
-      compatibilityScore: Math.min(
-        baseAnalysis.compatibilityScore * confidenceMultiplier + pluginCompatibilityAdjustments, 
-        10
-      ),
-      potentialOutcomes: [
-        ...baseAnalysis.potentialOutcomes,
-        ...additionalInsights,
-        `Advanced ML Insight (Confidence: ${(schoolConfidence * 100).toFixed(2)}%)`
-      ],
-      riskFactors: [
-        ...baseAnalysis.riskFactors,
-        ...warningMessages,
-        `Prediction Uncertainty: ${((1 - schoolConfidence) * 100).toFixed(2)}%`
-      ]
+  private static encodeSpellSchool(school: string): number {
+    const schoolEncoding: Record<string, number> = {
+      'evocation': 0,
+      'abjuration': 1,
+      'illusion': 2,
+      'necromancy': 3,
+      'conjuration': 4,
+      'transmutation': 5,
+      'divination': 6,
+      'enchantment': 7
     };
+    return schoolEncoding[school.toLowerCase()] || -1;
   }
 
   /**
-   * Get comprehensive model statistics
-   * @returns Detailed model statistics
+   * Encode character class to numerical representation
+   * @param characterClass Character class name
+   * @returns Numerical encoding
    */
-  static getAdvancedModelStats() {
-    return {
-      overallConfidence: this.modelConfidence.overall,
-      spellSchoolConfidence: this.modelConfidence.bySpellSchool,
-      terrainConfidence: this.modelConfidence.byTerrain,
-      trainingDatasetSize: this.trainingDataset.length,
-      registeredPlugins: SpellInteractionPluginManager.getRegisteredPlugins().map(p => p.name)
+  private static encodeCharacterClass(characterClass: string): number {
+    const classEncoding: Record<string, number> = {
+      'wizard': 0,
+      'sorcerer': 1,
+      'warlock': 2,
+      'druid': 3,
+      'cleric': 4,
+      'paladin': 5,
+      'ranger': 6,
+      'bard': 7
     };
+    return classEncoding[characterClass.toLowerCase()] || -1;
+  }
+
+  /**
+   * Encode environmental terrain to numerical representation
+   * @param terrain Terrain type
+   * @returns Numerical encoding
+   */
+  private static encodeEnvironmentalTerrain(terrain: string): number {
+    const terrainEncoding: Record<string, number> = {
+      'urban': 0,
+      'wilderness': 1,
+      'dungeon': 2,
+      'forest': 3,
+      'mountain': 4,
+      'desert': 5
+    };
+    return terrainEncoding[terrain.toLowerCase()] || -1;
+  }
+
+  /**
+   * Encode combat difficulty to numerical representation
+   * @param difficulty Combat difficulty
+   * @returns Numerical encoding
+   */
+  private static encodeCombatDifficulty(difficulty: string): number {
+    const difficultyEncoding: Record<string, number> = {
+      'easy': 0,
+      'moderate': 1,
+      'challenging': 2,
+      'extreme': 3
+    };
+    return difficultyEncoding[difficulty.toLowerCase()] || -1;
+  }
+
+  /**
+   * Get model performance metrics
+   * @returns Model performance statistics
+   */
+  static getModelPerformance(): {
+    tfModelSummary?: string;
+    brainModelLayers?: number[];
+  } {
+    const result: {
+      tfModelSummary?: string;
+      brainModelLayers?: number[];
+    } = {};
+
+    if (this.tfModel) {
+      const modelSummary: string[] = [];
+      this.tfModel.summary((line) => modelSummary.push(line));
+      result.tfModelSummary = modelSummary.join('\n');
+    }
+
+    if (this.brainModel) {
+      result.brainModelLayers = [
+        this.brainModel.inputLayer.size,
+        ...this.brainModel.hiddenLayers.map(layer => layer.size),
+        this.brainModel.outputLayer.size
+      ];
+    }
+
+    return result;
   }
 }

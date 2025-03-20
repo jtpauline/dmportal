@@ -6,8 +6,14 @@ import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+    include: ['app/**/*.test.{ts,tsx}']
+  },
   ssr: {
-    noExternal: ['isbot']
+    noExternal: ['isbot', 'zod', 'superjson']
   },
   css: {
     postcss: {
@@ -18,11 +24,23 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['@remix-run/dev', 'react-compiler-runtime'],
+    include: [
+      'uuid', 
+      'lz-string', 
+      'zod', 
+      'superjson', 
+      'framer-motion'
+    ],
     esbuildOptions: {
       define: {
-        'globalThis.__REACT_COMPILER_RUNTIME__': 'true'
+        'globalThis.__REACT_COMPILER_RUNTIME__': 'false'
       }
+    }
+  },
+  resolve: {
+    alias: {
+      '~': '/app',
+      'react-compiler-runtime': false
     }
   },
   plugins: [
@@ -36,22 +54,8 @@ export default defineConfig({
       },
     }),
     tsconfigPaths(),
-    react({
-      babel: {
-        plugins: [
-          ['babel-plugin-react-compiler', {
-            runtimeModule: 'react-compiler-runtime'
-          }]
-        ]
-      }
-    })
+    react()
   ],
-  resolve: {
-    alias: {
-      '~': '/app',
-      'react-compiler-runtime': 'react-compiler-runtime/dist/index.js'
-    }
-  },
   build: {
     rollupOptions: {
       output: {

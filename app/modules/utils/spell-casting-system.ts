@@ -1,309 +1,239 @@
 import { Character } from '../characters';
-import { Spell, SpellEffect } from './spell-system';
-import { SpellPreparationSystem } from './spell-preparation-system';
-import { AbilityScoreUtils } from './ability-score-utils';
+import { Spell } from '../spells';
 
-export interface SpellCastingContext {
-  character: Character;
-  spell: Spell;
-  spellLevel: number;
-  additionalModifiers?: Record<string, number>;
-}
-
-export interface SpellCastResult {
-  success: boolean;
-  damage?: number;
-  healing?: number;
-  effects: SpellEffect[];
-  concentrationRequired: boolean;
-  spellSlotUsed: boolean;
-  errors?: string[];
+export interface SpellCastingAnalysis {
+  spellVersatility: string;
+  castingPotential: number;
+  schoolDiversity: number;
+  spellLevelRange: string;
+  potentialCastingStrategies: string[];
 }
 
 export class SpellCastingSystem {
   /**
-   * Comprehensive spell casting mechanism
-   * @param context Spell casting context
-   * @returns Detailed spell casting result
+   * Analyze a character's spell casting capabilities
+   * @param character Character to analyze
+   * @returns Comprehensive spell casting analysis
    */
-  static castSpell(context: SpellCastingContext): SpellCastResult {
-    const { character, spell, spellLevel } = context;
+  static analyzeSpellCastingCapabilities(character: {
+    name: string;
+    class: string;
+    level: number;
+    spells: Spell[];
+  }): SpellCastingAnalysis {
+    const { spells } = character;
 
-    // Validate spell casting prerequisites
-    const validationErrors = this.validateSpellCasting(context);
-    if (validationErrors.length > 0) {
-      return {
-        success: false,
-        effects: [],
-        concentrationRequired: spell.concentration || false,
-        spellSlotUsed: false,
-        errors: validationErrors
-      };
-    }
+    // Analyze spell schools
+    const spellSchools = spells.map(spell => spell.school);
+    const uniqueSchools = new Set(spellSchools);
 
-    // Calculate spell attack and damage
-    const spellAttackResult = this.calculateSpellAttack(context);
+    // Calculate spell level distribution
+    const spellLevels = spells.map(spell => spell.level);
+    const minLevel = Math.min(...spellLevels);
+    const maxLevel = Math.max(...spellLevels);
 
-    // Manage spell slots
-    const spellSlotManagement = this.manageSpellSlots(character, spell, spellLevel);
+    // Determine spell versatility
+    const versatilityScore = this.calculateVersatilityScore(spells);
+    const spellVersatility = this.interpretVersatilityScore(versatilityScore);
 
-    // Handle concentration
-    const concentrationCheck = this.handleConcentration(character, spell);
+    // Calculate casting potential
+    const castingPotential = this.calculateCastingPotential(
+      character.class, 
+      spells
+    );
+
+    // Generate potential casting strategies
+    const potentialCastingStrategies = this.generateCastingStrategies(spells);
 
     return {
-      success: true,
-      ...spellAttackResult,
-      concentrationRequired: spell.concentration || false,
-      spellSlotUsed: spellSlotManagement.slotUsed,
-      errors: []
+      spellVersatility,
+      castingPotential,
+      schoolDiversity: uniqueSchools.size,
+      spellLevelRange: `Level ${minLevel}-${maxLevel}`,
+      potentialCastingStrategies
     };
   }
 
   /**
-   * Validate spell casting prerequisites
-   * @param context Spell casting context
-   * @returns Array of validation errors
+   * Calculate spell versatility score
+   * @param spells Array of spells
+   * @returns Numerical versatility score
    */
-  private static validateSpellCasting(context: SpellCastingContext): string[] {
-    const { character, spell } = context;
-    const errors: string[] = [];
+  private static calculateVersatilityScore(spells: Spell[]): number {
+    // Analyze spell diversity
+    const schoolDiversity = new Set(spells.map(spell => spell.school)).size;
+    const levelRange = Math.max(...spells.map(spell => spell.level)) - 
+                      Math.min(...spells.map(spell => spell.level));
 
-    // Check spell preparation
-    const preparedSpells = character.preparedSpells || [];
-    const isPrepared = preparedSpells.some(
-      slot => slot.spell?.id === spell.id && slot.prepared
-    );
+    // Analyze spell tags for versatility
+    const uniqueTags = new Set(
+      spells.flatMap(spell => spell.tags || [])
+    ).size;
 
-    if (!isPrepared) {
-      errors.push('Spell is not prepared');
-    }
+    // Combine factors
+    const baseScore = (
+      schoolDiversity * 2 + 
+      levelRange + 
+      uniqueTags
+    ) / (spells.length + 1);
 
-    // Check material components
-    const materialComponentCheck = SpellPreparationSystem.manageMaterialComponents(
-      character, 
-      spell
-    );
-
-    if (materialComponentCheck.requiresMaterials && 
-        materialComponentCheck.missingComponents.length > 0) {
-      errors.push(
-        `Missing material components: ${materialComponentCheck.missingComponents.join(', ')}`
-      );
-    }
-
-    // Check spell requirements
-    const abilityScore = character.abilityScores[
-      this.getSpellcastingAbility(character.class)
-    ];
-    const spellSaveDC = 8 + 
-      AbilityScoreUtils.calculateAbilityModifier(abilityScore) + 
-      character.proficiencyBonus;
-
-    return errors;
+    return Math.min(Math.max(baseScore * 3, 0), 10);
   }
 
   /**
-   * Calculate spell attack and damage
-   * @param context Spell casting context
-   * @returns Spell attack and damage results
+   * Interpret versatility score
+   * @param score Numerical versatility score
+   * @returns Descriptive versatility level
    */
-  private static calculateSpellAttack(context: SpellCastingContext) {
-    const { character, spell, spellLevel } = context;
-    
-    // Calculate spellcasting ability modifier
-    const spellcastingAbility = this.getSpellcastingAbility(character.class);
-    const abilityModifier = AbilityScoreUtils.calculateAbilityModifier(
-      character.abilityScores[spellcastingAbility]
-    );
+  private static interpretVersatilityScore(score: number): string {
+    if (score < 3) return 'Limited';
+    if (score < 5) return 'Basic';
+    if (score < 7) return 'Moderate';
+    if (score < 9) return 'Advanced';
+    return 'Exceptional';
+  }
 
-    // Process spell effects
-    const processedEffects = spell.effects.map(effect => {
-      switch (effect.type) {
-        case 'damage':
-          return this.calculateDamageEffect(effect, spellLevel, abilityModifier);
-        case 'healing':
-          return this.calculateHealingEffect(effect, spellLevel, abilityModifier);
-        default:
-          return effect;
+  /**
+   * Calculate overall casting potential
+   * @param characterClass Character's class
+   * @param spells Array of spells
+   * @returns Numerical casting potential score
+   */
+  private static calculateCastingPotential(
+    characterClass: string, 
+    spells: Spell[]
+  ): number {
+    // Base potential by class
+    const classPotentialMap = {
+      'Wizard': 1.5,
+      'Sorcerer': 1.4,
+      'Warlock': 1.3,
+      'Druid': 1.2,
+      'Cleric': 1.1,
+      'Bard': 1.0,
+      'Paladin': 0.9,
+      'Ranger': 0.8
+    };
+
+    const classMultiplier = classPotentialMap[characterClass] || 1.0;
+
+    // Analyze spell levels
+    const highLevelSpells = spells.filter(spell => spell.level >= 3).length;
+    const uniqueSchools = new Set(spells.map(spell => spell.school)).size;
+
+    // Calculate potential
+    const baseScore = (
+      highLevelSpells * 2 + 
+      uniqueSchools * 1.5
+    ) * classMultiplier;
+
+    return Math.min(Math.max(baseScore, 0), 10);
+  }
+
+  /**
+   * Generate potential casting strategies
+   * @param spells Array of spells
+   * @returns Array of casting strategy descriptions
+   */
+  private static generateCastingStrategies(spells: Spell[]): string[] {
+    const strategies: string[] = [];
+
+    // Analyze spell schools
+    const schoolAnalysis = this.analyzeSpellSchools(spells);
+    strategies.push(...schoolAnalysis);
+
+    // Analyze spell levels
+    const levelAnalysis = this.analyzeSpellLevels(spells);
+    strategies.push(...levelAnalysis);
+
+    // Analyze spell tags
+    const tagAnalysis = this.analyzeSpellTags(spells);
+    strategies.push(...tagAnalysis);
+
+    return strategies;
+  }
+
+  /**
+   * Analyze spell schools for casting strategies
+   * @param spells Array of spells
+   * @returns Array of school-based strategies
+   */
+  private static analyzeSpellSchools(spells: Spell[]): string[] {
+    const schoolStrategies: string[] = [];
+    const schools = new Set(spells.map(spell => spell.school));
+
+    const schoolStrategyMap = {
+      'Evocation': 'Direct damage and energy manipulation',
+      'Abjuration': 'Defensive and protective casting',
+      'Conjuration': 'Summoning and teleportation strategies',
+      'Illusion': 'Deception and misdirection tactics',
+      'Necromancy': 'Life and death energy manipulation',
+      'Transmutation': 'Transformation and alteration approaches',
+      'Divination': 'Predictive and information-gathering methods',
+      'Enchantment': 'Mind control and emotional manipulation'
+    };
+
+    schools.forEach(school => {
+      if (schoolStrategyMap[school]) {
+        schoolStrategies.push(schoolStrategyMap[school]);
       }
     });
 
-    return {
-      effects: processedEffects,
-      damage: processedEffects
-        .filter(e => e.type === 'damage')
-        .reduce((total, effect) => total + this.parseDamageValue(effect.value), 0),
-      healing: processedEffects
-        .filter(e => e.type === 'healing')
-        .reduce((total, effect) => total + this.parseHealingValue(effect.value), 0)
-    };
+    return schoolStrategies;
   }
 
   /**
-   * Manage spell slot usage
-   * @param character Character casting spell
-   * @param spell Spell being cast
-   * @param spellLevel Spell level used
-   * @returns Spell slot management result
+   * Analyze spell levels for casting strategies
+   * @param spells Array of spells
+   * @returns Array of level-based strategies
    */
-  private static manageSpellSlots(
-    character: Character, 
-    spell: Spell, 
-    spellLevel: number
-  ) {
-    const spellSlots = SpellPreparationSystem.calculateSpellSlots(character);
-    
-    // Check available spell slots
-    const availableSlots = spellSlots[spellLevel] || 0;
+  private static analyzeSpellLevels(spells: Spell[]): string[] {
+    const levelStrategies: string[] = [];
+    const levels = spells.map(spell => spell.level);
 
-    if (availableSlots > 0) {
-      // Reduce available spell slots
-      spellSlots[spellLevel]--;
+    const minLevel = Math.min(...levels);
+    const maxLevel = Math.max(...levels);
 
-      return {
-        slotUsed: true,
-        remainingSlots: spellSlots[spellLevel]
-      };
+    if (minLevel <= 2) {
+      levelStrategies.push('Utilize low-level utility spells for efficiency');
     }
 
-    return {
-      slotUsed: false,
-      remainingSlots: availableSlots
-    };
+    if (maxLevel >= 3) {
+      levelStrategies.push('Leverage high-level powerful spell combinations');
+    }
+
+    if (maxLevel >= 5) {
+      levelStrategies.push('Employ advanced, game-changing spell tactics');
+    }
+
+    return levelStrategies;
   }
 
   /**
-   * Handle concentration spell mechanics
-   * @param character Character casting spell
-   * @param spell Spell being cast
-   * @returns Concentration check result
+   * Analyze spell tags for casting strategies
+   * @param spells Array of spells
+   * @returns Array of tag-based strategies
    */
-  private static handleConcentration(
-    character: Character, 
-    spell: Spell
-  ) {
-    if (!spell.concentration) {
-      return {
-        requiresConcentration: false,
-        concentrationCheck: null
-      };
-    }
+  private static analyzeSpellTags(spells: Spell[]): string[] {
+    const tagStrategies: string[] = [];
+    const allTags = spells.flatMap(spell => spell.tags || []);
+    const uniqueTags = new Set(allTags);
 
-    // Concentration check mechanics
-    const spellcastingAbility = this.getSpellcastingAbility(character.class);
-    const concentrationDC = 10;  // Base DC, can be modified by damage or other factors
+    const tagStrategyMap = {
+      'control': 'Focus on battlefield control and enemy limitation',
+      'damage': 'Maximize offensive spell damage output',
+      'healing': 'Prioritize party survival and recovery',
+      'buff': 'Enhance ally capabilities through magical empowerment',
+      'debuff': 'Weaken and hinder enemy effectiveness',
+      'utility': 'Solve problems through versatile magical solutions'
+    };
 
-    // Simulate concentration check
-    const abilityModifier = AbilityScoreUtils.calculateAbilityModifier(
-      character.abilityScores[spellcastingAbility]
-    );
-
-    return {
-      requiresConcentration: true,
-      concentrationCheck: {
-        dc: concentrationDC,
-        modifier: abilityModifier
+    uniqueTags.forEach(tag => {
+      if (tagStrategyMap[tag]) {
+        tagStrategies.push(tagStrategyMap[tag]);
       }
-    };
-  }
+    });
 
-  /**
-   * Calculate damage effect for a spell
-   * @param effect Spell effect
-   * @param spellLevel Spell level
-   * @param abilityModifier Spellcasting ability modifier
-   * @returns Processed damage effect
-   */
-  private static calculateDamageEffect(
-    effect: SpellEffect, 
-    spellLevel: number, 
-    abilityModifier: number
-  ): SpellEffect {
-    // Implement damage scaling for higher spell levels
-    const baseDamage = this.parseDamageValue(effect.value);
-    const scaledDamage = baseDamage + (spellLevel > effect.level ? 
-      (spellLevel - effect.level) * 1 : 0);
-
-    return {
-      ...effect,
-      value: `${scaledDamage + abilityModifier} damage`
-    };
-  }
-
-  /**
-   * Calculate healing effect for a spell
-   * @param effect Spell effect
-   * @param spellLevel Spell level
-   * @param abilityModifier Spellcasting ability modifier
-   * @returns Processed healing effect
-   */
-  private static calculateHealingEffect(
-    effect: SpellEffect, 
-    spellLevel: number, 
-    abilityModifier: number
-  ): SpellEffect {
-    // Implement healing scaling for higher spell levels
-    const baseHealing = this.parseHealingValue(effect.value);
-    const scaledHealing = baseHealing + (spellLevel > effect.level ? 
-      (spellLevel - effect.level) * 1 : 0);
-
-    return {
-      ...effect,
-      value: `${scaledHealing + abilityModifier} healing`
-    };
-  }
-
-  /**
-   * Parse damage value from spell effect
-   * @param damageValue Damage value string
-   * @returns Parsed damage number
-   */
-  private static parseDamageValue(damageValue: string): number {
-    // Simple parsing, can be expanded for more complex dice notation
-    const match = damageValue.match(/(\d+)d(\d+)\s*(\+\s*\d+)?/);
-    if (match) {
-      const [, diceCount, diceType, modifier] = match;
-      const baseDamage = parseInt(diceCount) * (parseInt(diceType) / 2);
-      const additionalModifier = modifier ? parseInt(modifier.replace(/\+\s*/, '')) : 0;
-      return baseDamage + additionalModifier;
-    }
-    return 0;
-  }
-
-  /**
-   * Parse healing value from spell effect
-   * @param healingValue Healing value string
-   * @returns Parsed healing number
-   */
-  private static parseHealingValue(healingValue: string): number {
-    // Similar to damage parsing
-    const match = healingValue.match(/(\d+)d(\d+)\s*(\+\s*\d+)?/);
-    if (match) {
-      const [, diceCount, diceType, modifier] = match;
-      const baseHealing = parseInt(diceCount) * (parseInt(diceType) / 2);
-      const additionalModifier = modifier ? parseInt(modifier.replace(/\+\s*/, '')) : 0;
-      return baseHealing + additionalModifier;
-    }
-    return 0;
-  }
-
-  /**
-   * Get spellcasting ability for a class
-   * @param characterClass Character's class
-   * @returns Spellcasting ability
-   */
-  private static getSpellcastingAbility(characterClass: string): string {
-    const spellcastingAbilities = {
-      'Wizard': 'intelligence',
-      'Cleric': 'wisdom',
-      'Warlock': 'charisma',
-      'Druid': 'wisdom',
-      'Sorcerer': 'charisma',
-      'Paladin': 'charisma',
-      'Ranger': 'wisdom',
-      'Bard': 'charisma'
-    };
-
-    return spellcastingAbilities[characterClass] || 'intelligence';
+    return tagStrategies;
   }
 }

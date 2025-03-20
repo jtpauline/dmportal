@@ -1,80 +1,135 @@
 import { Character } from '../characters';
 import { InventoryItem } from './inventory-management';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface MagicItem extends InventoryItem {
+  id: string;
   magical: true;
   rarity: 'Common' | 'Uncommon' | 'Rare' | 'Very Rare' | 'Legendary';
   attunement: boolean;
   magical_properties: {
+    id: string;
     type: string;
     description: string;
     activation?: 'passive' | 'active' | 'on-use';
-    charges?: number;
+    charges?: number | null;
+    duration?: number; // in rounds or hours
+    cooldown?: number; // in rounds or hours
   }[];
+  lore?: string;
+  crafting_requirements?: {
+    materials: string[];
+    skill_check?: {
+      skill: string;
+      difficulty: number;
+    };
+  };
 }
 
 export class MagicItemSystem {
+  private static readonly MAGIC_ITEM_TEMPLATES = {
+    'Common': [
+      {
+        name: 'Candle of the Deep',
+        description: 'A mystical candle that provides light underwater without being extinguished.',
+        weight: 0.1,
+        value: 50,
+        rarity: 'Common',
+        attunement: false,
+        magical_properties: [{
+          id: uuidv4(),
+          type: 'Light',
+          description: 'Provides light underwater without being extinguished',
+          activation: 'passive'
+        }],
+        lore: 'Crafted by sea elves for underwater exploration.'
+      }
+    ],
+    'Uncommon': [
+      {
+        name: 'Boots of Elvenkind',
+        description: 'Magical boots that enhance stealth and movement.',
+        weight: 1,
+        value: 250,
+        rarity: 'Uncommon',
+        attunement: true,
+        magical_properties: [{
+          id: uuidv4(),
+          type: 'Stealth',
+          description: 'Advantage on Stealth checks when moving',
+          activation: 'passive'
+        }],
+        lore: 'Woven with ancient elven magic to move silently.',
+        crafting_requirements: {
+          materials: ['Elvish silk', 'Shadow essence'],
+          skill_check: {
+            skill: 'Arcana',
+            difficulty: 15
+          }
+        }
+      }
+    ],
+    'Rare': [
+      {
+        name: 'Flame Tongue Sword',
+        description: 'A magical sword that bursts into flames on command.',
+        weight: 3,
+        value: 1000,
+        rarity: 'Rare',
+        attunement: true,
+        magical_properties: [{
+          id: uuidv4(),
+          type: 'Weapon Enhancement',
+          description: 'Adds 2d6 fire damage on hit',
+          activation: 'active',
+          charges: null,
+          duration: 1,
+          cooldown: 1
+        }],
+        lore: 'Forged in the volcanic depths of the Firelands.'
+      }
+    ]
+  };
+
   /**
-   * Generate a random magic item
+   * Generate a magic item with enhanced generation logic
    * @param rarity Rarity of the magic item
+   * @param options Additional generation options
    * @returns Generated magic item
    */
-  static generateMagicItem(rarity: MagicItem['rarity']): MagicItem {
-    const magicItemTemplates = {
-      'Common': [
-        {
-          name: 'Candle of the Deep',
-          weight: 0.1,
-          value: 50,
-          magical: true,
-          rarity: 'Common',
-          attunement: false,
-          magical_properties: [{
-            type: 'Light',
-            description: 'Provides light underwater without being extinguished',
-            activation: 'passive'
-          }]
-        }
-      ],
-      'Uncommon': [
-        {
-          name: 'Boots of Elvenkind',
-          weight: 1,
-          value: 250,
-          magical: true,
-          rarity: 'Uncommon',
-          attunement: true,
-          magical_properties: [{
-            type: 'Stealth',
-            description: 'Advantage on Stealth checks when moving',
-            activation: 'passive'
-          }]
-        }
-      ],
-      'Rare': [
-        {
-          name: 'Flame Tongue Sword',
-          weight: 3,
-          value: 1000,
-          magical: true,
-          rarity: 'Rare',
-          attunement: true,
-          magical_properties: [{
-            type: 'Weapon Enhancement',
-            description: 'Adds 2d6 fire damage on hit',
-            activation: 'active',
-            charges: null
-          }]
-        }
-      ]
+  static generateMagicItem(
+    rarity: MagicItem['rarity'], 
+    options: { 
+      customization?: Partial<MagicItem>,
+      preventDuplicates?: boolean 
+    } = {}
+  ): MagicItem {
+    const { customization = {}, preventDuplicates = false } = options;
+    const itemTemplates = this.MAGIC_ITEM_TEMPLATES[rarity] || [];
+    
+    if (itemTemplates.length === 0) {
+      throw new Error(`No magic item templates found for rarity: ${rarity}`);
+    }
+
+    const baseItem = JSON.parse(JSON.stringify(
+      itemTemplates[Math.floor(Math.random() * itemTemplates.length)]
+    ));
+
+    const magicItem: MagicItem = {
+      ...baseItem,
+      id: uuidv4(),
+      ...customization,
+      magical_properties: baseItem.magical_properties.map(prop => ({
+        ...prop,
+        id: uuidv4()
+      }))
     };
 
-    const itemTemplates = magicItemTemplates[rarity] || [];
-    return itemTemplates[Math.floor(Math.random() * itemTemplates.length)] as MagicItem;
+    return magicItem;
   }
 
   /**
-   * Validate magic item for character
+   * Advanced magic item validation
    * @param character Character to validate magic item for
    * @param magicItem Magic item to validate
    * @returns Validation errors
@@ -107,11 +162,13 @@ export class MagicItemSystem {
       errors.push(`Insufficient level to use ${magicItem.rarity} magic item`);
     }
 
+    // Additional validation checks can be added here
+
     return errors;
   }
 
   /**
-   * Apply magic item effects
+   * Advanced magic item effect application
    * @param character Character using magic item
    * @param magicItem Magic item to apply
    * @returns Modified character
@@ -127,9 +184,19 @@ export class MagicItemSystem {
             (modifiedCharacter.skills.stealth || 0) + 2;
           break;
         case 'Weapon Enhancement':
-          // Logic for weapon enhancement
+          // Enhanced weapon enhancement logic
+          modifiedCharacter.combat = modifiedCharacter.combat || {};
+          modifiedCharacter.combat.additionalDamage = 
+            (modifiedCharacter.combat.additionalDamage || 0) + 2;
           break;
-        // Add more magic item effect types
+        case 'Light':
+          // Special light-based effects
+          modifiedCharacter.specialAbilities = modifiedCharacter.specialAbilities || [];
+          modifiedCharacter.specialAbilities.push({
+            name: 'Underwater Illumination',
+            description: 'Can see clearly underwater'
+          });
+          break;
       }
     });
 
@@ -137,9 +204,9 @@ export class MagicItemSystem {
   }
 
   /**
-   * Calculate magic item value
+   * Advanced magic item value calculation
    * @param magicItem Magic item to value
-   * @returns Estimated value
+   * @returns Estimated value with complex calculations
    */
   static calculateMagicItemValue(magicItem: MagicItem): number {
     const rarityMultipliers = {
@@ -152,16 +219,27 @@ export class MagicItemSystem {
 
     let baseValue = rarityMultipliers[magicItem.rarity] || 0;
 
-    // Additional value modifiers
+    // Advanced value modifiers
     if (magicItem.attunement) {
       baseValue *= 1.5;
     }
 
-    return baseValue;
+    // Additional property value calculation
+    const propertiesValueMultiplier = magicItem.magical_properties.reduce(
+      (multiplier, prop) => {
+        switch (prop.type) {
+          case 'Weapon Enhancement': return multiplier * 1.3;
+          case 'Stealth': return multiplier * 1.2;
+          default: return multiplier;
+        }
+      }, 1
+    );
+
+    return Math.floor(baseValue * propertiesValueMultiplier);
   }
 
   /**
-   * Generate magic item for character
+   * Generate magic item for character with advanced checks
    * @param character Character to generate magic item for
    * @param rarity Rarity of magic item
    * @returns Generated and validated magic item
@@ -170,13 +248,36 @@ export class MagicItemSystem {
     character: Character, 
     rarity: MagicItem['rarity']
   ): MagicItem | null {
-    const magicItem = this.generateMagicItem(rarity);
-    const validationErrors = this.validateMagicItem(character, magicItem);
+    try {
+      const magicItem = this.generateMagicItem(rarity);
+      const validationErrors = this.validateMagicItem(character, magicItem);
 
-    if (validationErrors.length === 0) {
-      return magicItem;
+      if (validationErrors.length === 0) {
+        return magicItem;
+      }
+
+      console.warn('Magic Item Generation Validation Errors:', validationErrors);
+      return null;
+    } catch (error) {
+      console.error('Magic Item Generation Error:', error);
+      return null;
     }
+  }
 
+  /**
+   * Create a magic item crafting system
+   * @param character Character attempting to craft
+   * @param baseItem Base item to transform
+   * @param craftingSkillCheck Skill check for crafting
+   * @returns Crafted magic item or null
+   */
+  static craftMagicItem(
+    character: Character, 
+    baseItem: InventoryItem, 
+    craftingSkillCheck: { skill: string; difficulty: number }
+  ): MagicItem | null {
+    // Placeholder for advanced crafting logic
+    // Would involve skill checks, material requirements, etc.
     return null;
   }
 }

@@ -1,113 +1,173 @@
-import { useState } from 'react';
-import { LoaderFunction, ActionFunction, json } from '@remix-run/node';
-import { useLoaderData, Form } from '@remix-run/react';
-import { SpellPreparationModal } from '~/components/SpellPreparationModal';
-import { SpellPreparationSystem } from '~/modules/utils/spell-preparation-system';
-import { Character } from '~/modules/characters';
-import { Spell } from '~/modules/utils/spell-system';
+import React, { useState } from 'react';
+import { json } from '@remix-run/node';
+import { useLoaderData } from '@remix-run/react';
+import { Card } from '~/app/components/ui/Modal';
+import { SpellPreparationSystem } from '~/app/modules/utils/spell-preparation-system';
+import { SpellSynergySystem } from '~/app/modules/utils/spell-synergy-system';
 
-export const loader: LoaderFunction = async ({ params }) => {
-  // Fetch character and available spells
-  const character = await fetchCharacter(params.characterId);
-  const availableSpells = await fetchAvailableSpells(character);
+export const loader = async ({ params }) => {
+  // Mock data - in real implementation, fetch from actual character data
+  const character = {
+    name: 'Aria Stormwind',
+    class: 'Wizard',
+    level: 5,
+    spells: [
+      { name: 'Fireball', level: 3, school: 'Evocation', tags: ['damage', 'offensive'] },
+      { name: 'Misty Step', level: 2, school: 'Conjuration', tags: ['utility', 'movement'] },
+      { name: 'Shield', level: 1, school: 'Abjuration', tags: ['defense', 'protection'] }
+    ]
+  };
 
-  return json({ character, availableSpells });
-};
+  // Mock available spells for preparation
+  const availableSpells = [
+    { name: 'Fireball', level: 3, school: 'Evocation', tags: ['damage', 'offensive'] },
+    { name: 'Misty Step', level: 2, school: 'Conjuration', tags: ['utility', 'movement'] },
+    { name: 'Shield', level: 1, school: 'Abjuration', tags: ['defense', 'protection'] },
+    { name: 'Magic Missile', level: 1, school: 'Evocation', tags: ['damage', 'offensive'] },
+    { name: 'Detect Magic', level: 1, school: 'Divination', tags: ['utility', 'information'] },
+    { name: 'Mage Armor', level: 1, school: 'Abjuration', tags: ['defense', 'buff'] }
+  ];
 
-export const action: ActionFunction = async ({ request }) => {
-  const formData = await request.formData();
-  const action = formData.get('_action');
+  // Prepare spells
+  const spellPreparation = SpellPreparationSystem.prepareSpells(
+    character, 
+    availableSpells
+  );
 
-  switch (action) {
-    case 'prepare-spells':
-      const preparedSpells = JSON.parse(formData.get('preparedSpells') as string);
-      const updatedCharacter = await updateCharacterSpells(preparedSpells);
-      return json({ success: true, character: updatedCharacter });
-    default:
-      return json({ success: false, error: 'Invalid action' });
-  }
+  // Analyze spell synergies
+  const spellSynergies = SpellSynergySystem.analyzeSpellSynergies(
+    spellPreparation.recommendedSpellList
+  );
+
+  return json({
+    character,
+    spellPreparation,
+    spellSynergies
+  });
 };
 
 export default function SpellPreparationPage() {
-  const { character, availableSpells } = useLoaderData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { 
+    character, 
+    spellPreparation,
+    spellSynergies 
+  } = useLoaderData<typeof loader>();
 
-  const handleSpellsPrepared = async (updatedCharacter: Character) => {
-    // Submit prepared spells to server
-    const response = await fetch('/campaigns/${campaignId}/characters/${characterId}/spell-preparation', {
-      method: 'POST',
-      body: JSON.stringify({
-        _action: 'prepare-spells',
-        preparedSpells: updatedCharacter.preparedSpells
-      })
-    });
-
-    if (response.ok) {
-      // Update character state or trigger refresh
-      // Potentially use a state management solution or Remix's data revalidation
-    }
-  };
+  const [selectedSpell, setSelectedSpell] = useState(null);
 
   return (
-    <div className="spell-preparation-page p-6">
-      <h1 className="text-3xl font-bold mb-6">
-        Spell Preparation: {character.name}
-      </h1>
-
-      <div className="spell-preparation-summary mb-4">
-        <p>
-          Max Preparable Spells: {SpellPreparationSystem.calculateMaxPreparedSpells(character)}
-        </p>
-        <p>
-          Current Prepared Spells: {character.preparedSpells?.filter(slot => slot.prepared).length || 0}
-        </p>
-      </div>
-
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-      >
-        Prepare Spells
-      </button>
-
-      {isModalOpen && (
-        <SpellPreparationModal
-          character={character}
-          availableSpells={availableSpells}
-          onSpellsPrepared={handleSpellsPrepared}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
-
-      {/* Prepared Spells List */}
-      <div className="prepared-spells-list mt-6">
-        <h2 className="text-2xl font-semibold mb-4">Currently Prepared Spells</h2>
-        {character.preparedSpells?.filter(slot => slot.prepared).map(slot => (
-          <div 
-            key={slot.spell?.id} 
-            className="bg-gray-100 p-3 rounded mb-2"
-          >
-            <div className="font-bold">{slot.spell?.name}</div>
-            <div className="text-sm">{slot.spell?.school} Spell</div>
+    <div className="container mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">{character.name}'s Spell Preparation</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <h2 className="text-xl font-semibold mb-4">Recommended Spell List</h2>
+          
+          <div className="grid grid-cols-2 gap-4">
+            {spellPreparation.recommendedSpellList.map((spell, index) => (
+              <div 
+                key={index} 
+                className={`p-3 border rounded-lg cursor-pointer ${
+                  selectedSpell === spell 
+                    ? 'bg-blue-100 border-blue-500' 
+                    : 'hover:bg-gray-100'
+                }`}
+                onClick={() => setSelectedSpell(spell)}
+              >
+                <p className="font-semibold">{spell.name}</p>
+                <p className="text-sm text-gray-600">
+                  Level {spell.level} {spell.school}
+                </p>
+              </div>
+            ))}
           </div>
-        ))}
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-semibold mb-4">Spell Details</h2>
+          
+          {selectedSpell ? (
+            <div className="space-y-4">
+              <h3 className="font-bold">{selectedSpell.name} Details</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Spell Level</p>
+                  <p className="font-bold">{selectedSpell.level}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">School</p>
+                  <p className="font-bold">{selectedSpell.school}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Tags</p>
+                  <p className="font-bold">{selectedSpell.tags?.join(', ') || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-600">Select a spell to view details</p>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-semibold mb-4">Preparation Analysis</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-bold mb-2">Preparation Efficiency</h3>
+              <div className="bg-gray-100 p-3 rounded-lg">
+                <p className="text-sm text-gray-600">Efficiency Score</p>
+                <p className="text-lg font-bold">
+                  {spellPreparation.preparationEfficiency.toFixed(2)}/10
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-bold mb-2">Preparation Strategies</h3>
+              <ul className="list-disc list-inside text-gray-700">
+                {spellPreparation.preparationStrategies.map((strategy, index) => (
+                  <li key={index}>{strategy}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-semibold mb-4">Spell Synergies</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-bold mb-2">Potential Synergies</h3>
+              <ul className="list-disc list-inside text-gray-700">
+                {spellSynergies.potentialSynergies.map((synergy, index) => (
+                  <li key={index}>{synergy}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-bold mb-2">Recommended Combinations</h3>
+              <ul className="list-disc list-inside text-gray-700">
+                {spellSynergies.recommendedCombinations.map((combo, index) => (
+                  <li key={index}>{combo}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-bold mb-2">Synergy Score</h3>
+              <div className="bg-gray-100 p-3 rounded-lg">
+                <p className="text-sm text-gray-600">Overall Synergy</p>
+                <p className="text-lg font-bold">
+                  {spellSynergies.synergyScore.toFixed(2)}/10
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
-}
-
-// Placeholder functions - replace with actual implementation
-async function fetchCharacter(characterId: string): Promise<Character> {
-  // Fetch character data
-  return {} as Character;
-}
-
-async function fetchAvailableSpells(character: Character): Promise<Spell[]> {
-  // Fetch available spells for the character's class
-  return [];
-}
-
-async function updateCharacterSpells(preparedSpells: any): Promise<Character> {
-  // Update character's prepared spells
-  return {} as Character;
 }

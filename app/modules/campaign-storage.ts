@@ -1,82 +1,150 @@
-import { Campaign, CampaignStatus, CampaignNote, CampaignLocation } from './campaigns';
-import { v4 as uuidv4 } from 'uuid';
+import { Encounter } from './encounters';
+import { Character } from './characters';
+import { RandomGenerator } from '../utils/random-generator';
+
+export interface CampaignContext {
+  id: string;
+  name: string;
+  currentChapter?: string;
+  environmentalPreferences?: string[];
+  narrativeThemes?: string[];
+  difficultyPreference?: 'Easy' | 'Medium' | 'Hard' | 'Deadly';
+}
 
 export class CampaignStorage {
-  private static STORAGE_KEY = 'dnd-campaigns-v1';
+  private campaigns: Map<string, {
+    context: CampaignContext;
+    characters: Character[];
+    encounterHistory: Encounter[];
+  }> = new Map();
 
   /**
-   * Save campaign to local storage
+   * Create a new campaign
+   * @param name Campaign name
+   * @returns Campaign context
    */
-  static saveCampaign(campaign: Campaign): void {
-    const campaigns = this.getAllCampaigns();
-    
-    // Remove existing campaign if it exists
-    const existingIndex = campaigns.findIndex(c => c.id === campaign.id);
-    if (existingIndex !== -1) {
-      campaigns[existingIndex] = campaign;
-    } else {
-      campaigns.push(campaign);
+  createCampaign(name: string): CampaignContext {
+    const campaignId = RandomGenerator.generateUniqueId();
+    const campaignContext: CampaignContext = {
+      id: campaignId,
+      name,
+      currentChapter: 'Prologue',
+      environmentalPreferences: [],
+      narrativeThemes: [],
+      difficultyPreference: 'Medium'
+    };
+
+    this.campaigns.set(campaignId, {
+      context: campaignContext,
+      characters: [],
+      encounterHistory: []
+    });
+
+    return campaignContext;
+  }
+
+  /**
+   * Get campaign context
+   * @param campaignId Campaign identifier
+   * @returns Campaign context
+   */
+  async getCampaignContext(campaignId: string): Promise<CampaignContext> {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    return campaign.context;
+  }
+
+  /**
+   * Add characters to a campaign
+   * @param campaignId Campaign identifier
+   * @param characters Characters to add
+   */
+  async addCharactersToCampaign(campaignId: string, characters: Character[]): Promise<void> {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    campaign.characters.push(...characters);
+  }
+
+  /**
+   * Get campaign characters
+   * @param campaignId Campaign identifier
+   * @returns Campaign characters
+   */
+  async getCampaignCharacters(campaignId: string): Promise<Character[]> {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    return campaign.characters;
+  }
+
+  /**
+   * Add encounter to campaign history
+   * @param campaignId Campaign identifier
+   * @param encounter Encounter to add
+   */
+  async addEncounterToCampaignHistory(campaignId: string, encounter: Encounter): Promise<void> {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    campaign.encounterHistory.push(encounter);
+
+    // Update campaign context based on encounter
+    this.updateCampaignContextFromEncounter(campaign.context, encounter);
+  }
+
+  /**
+   * Get campaign encounter history
+   * @param campaignId Campaign identifier
+   * @returns Encounter history
+   */
+  async getCampaignEncounterHistory(campaignId: string): Promise<Encounter[]> {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    return campaign.encounterHistory;
+  }
+
+  /**
+   * Update campaign context based on encounter characteristics
+   * @param context Campaign context
+   * @param encounter Recent encounter
+   */
+  private updateCampaignContextFromEncounter(context: CampaignContext, encounter: Encounter): void {
+    // Update environmental preferences
+    if (!context.environmentalPreferences.includes(encounter.terrain)) {
+      context.environmentalPreferences.push(encounter.terrain);
     }
 
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(campaigns));
-  }
+    // Update narrative themes
+    encounter.narrative.thematicElements.forEach(theme => {
+      if (!context.narrativeThemes.includes(theme)) {
+        context.narrativeThemes.push(theme);
+      }
+    });
 
-  /**
-   * Get all campaigns
-   */
-  static getAllCampaigns(): Campaign[] {
-    const campaignsJson = localStorage.getItem(this.STORAGE_KEY);
-    return campaignsJson ? JSON.parse(campaignsJson) : [];
-  }
+    // Adjust difficulty preference based on encounter difficulty
+    const difficultyMap = {
+      'Easy': 0,
+      'Medium': 1,
+      'Hard': 2,
+      'Deadly': 3
+    };
 
-  /**
-   * Get campaign by ID
-   */
-  static getCampaignById(campaignId: string): Campaign | undefined {
-    const campaigns = this.getAllCampaigns();
-    return campaigns.find(campaign => campaign.id === campaignId);
-  }
+    const currentDifficultyValue = difficultyMap[context.difficultyPreference];
+    const encounterDifficultyValue = difficultyMap[encounter.difficulty];
 
-  /**
-   * Delete campaign
-   */
-  static deleteCampaign(campaignId: string): void {
-    const campaigns = this.getAllCampaigns();
-    const updatedCampaigns = campaigns.filter(campaign => campaign.id !== campaignId);
-    
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedCampaigns));
-  }
-
-  /**
-   * Export campaigns to JSON
-   */
-  static exportCampaigns(): string {
-    const campaigns = this.getAllCampaigns();
-    return JSON.stringify(campaigns, null, 2);
-  }
-
-  /**
-   * Import campaigns from JSON
-   */
-  static importCampaigns(jsonString: string): void {
-    try {
-      const importedCampaigns: Campaign[] = JSON.parse(jsonString);
-      
-      // Validate imported campaigns
-      const validCampaigns = importedCampaigns.map(campaign => ({
-        ...campaign,
-        id: campaign.id || uuidv4(),
-        startDate: new Date(campaign.startDate),
-        endDate: campaign.endDate ? new Date(campaign.endDate) : undefined,
-        notes: campaign.notes.map(note => ({
-          ...note,
-          date: new Date(note.date)
-        }))
-      }));
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(validCampaigns));
-    } catch (error) {
-      throw new Error('Invalid campaign import data');
+    if (encounterDifficultyValue > currentDifficultyValue) {
+      const newDifficultyOptions = ['Easy', 'Medium', 'Hard', 'Deadly'];
+      context.difficultyPreference = newDifficultyOptions[
+        Math.min(encounterDifficultyValue, newDifficultyOptions.length - 1)
+      ] as CampaignContext['difficultyPreference'];
     }
   }
 }

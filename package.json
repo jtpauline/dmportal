@@ -1,0 +1,43 @@
+{
+  "name": "dnd-campaign-manager",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf build node_modules/.vite",
+    "dev": "remix vite:dev",
+    "build": "remix vite:build",
+    "start": "remix-serve ./build/index.js"
+  },
+  "dependencies": {
+    "@remix-run/node": "^2.16.2",
+    "@remix-run/react": "^2.16.2",
+    "@remix-run/serve": "^2.16.2",
+    "react": "^18.3.0-canary-7118f5eae-20240216",
+    "react-dom": "^18.3.0-canary-7118f5eae-20240216",
+    "isbot": "^5.0.1",
+    "react-compiler-runtime": "^0.0.0-experimental"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.16.2",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.1.0",
+    "vite-tsconfig-paths": "^4.3.1",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8.4.35",
+    "autoprefixer": "^10.4.17",
+    "babel-plugin-react-compiler": "^0.0.0-experimental-c8b3ee4"
+  },
+  "remix": {
+    "future": {
+      "v3_lazyRouteDiscovery": true,
+      "v3_singleFetch": true,
+      "v3_relativeSplatPath": true
+    }
+  },
+  "overrides": {
+    "react": "^18.3.0-canary-7118f5eae-20240216",
+    "react-dom": "^18.3.0-canary-7118f5eae-20240216"
+  }
+}

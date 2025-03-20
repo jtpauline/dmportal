@@ -1,126 +1,61 @@
-import React, { useState } from 'react';
-import { json } from '@remix-run/node';
+import { LoaderFunction, json } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
-import { SpellInteractionComplexityDisplay } from '~/app/components/SpellInteractionComplexityDisplay';
+import { SpellInteractionVisualizer } from '~/modules/utils/spell-interaction-visualization';
+import { SpellInteractionComplexityDisplay } from '~/components/SpellInteractionComplexityDisplay';
+import { SpellInteractionVisualizationCard } from '~/components/SpellInteractionVisualizationCard';
+import { getCharacterSpells } from '~/modules/characters';
+import { getEnvironmentalContext } from '~/modules/utils/environmental-context-analyzer';
 
-export const loader = async ({ params }) => {
-  // Mock data - in real implementation, fetch from actual character data
-  const character = {
-    name: 'Aria Stormwind',
-    class: 'Wizard',
-    level: 5,
-    abilityScores: {
-      intelligence: 16
-    }
-  };
+export const loader: LoaderFunction = async ({ params }) => {
+  const { characterId, campaignId } = params;
+  
+  // Fetch character's spells
+  const characterSpells = await getCharacterSpells(characterId);
+  
+  // Get environmental context
+  const environmentalContext = await getEnvironmentalContext(campaignId);
 
-  // Mock available spells
-  const availableSpells = [
-    { 
-      id: 'fireball',
-      name: 'Fireball', 
-      level: 3, 
-      school: 'Evocation', 
-      tags: ['damage', 'offensive'] 
-    },
-    { 
-      id: 'misty-step',
-      name: 'Misty Step', 
-      level: 2, 
-      school: 'Conjuration', 
-      tags: ['utility', 'movement'] 
-    },
-    { 
-      id: 'shield',
-      name: 'Shield', 
-      level: 1, 
-      school: 'Abjuration', 
-      tags: ['defense', 'protection'] 
-    },
-    { 
-      id: 'magic-missile',
-      name: 'Magic Missile', 
-      level: 1, 
-      school: 'Evocation', 
-      tags: ['damage', 'offensive'] 
-    },
-    { 
-      id: 'detect-magic',
-      name: 'Detect Magic', 
-      level: 1, 
-      school: 'Divination', 
-      tags: ['utility', 'information'] 
-    }
-  ];
+  // Generate spell interaction data for top spell combinations
+  const spellInteractions = characterSpells.slice(0, 5).flatMap((primarySpell, index) => 
+    characterSpells.slice(index + 1).map(secondarySpell => ({
+      primarySpell,
+      secondarySpell,
+      visualizationData: SpellInteractionVisualizer.generateVisualizationData(
+        primarySpell, 
+        secondarySpell, 
+        { id: characterId }, // Simplified character object
+        environmentalContext
+      )
+    }))
+  );
 
   return json({
-    character,
-    availableSpells
+    spellInteractions,
+    characterId,
+    campaignId
   });
 };
 
 export default function SpellInteractionComplexityPage() {
-  const { character, availableSpells } = useLoaderData<typeof loader>();
-  const [primarySpell, setPrimarySpell] = useState<any>(null);
-  const [secondarySpell, setSecondarySpell] = useState<any>(null);
+  const { spellInteractions } = useLoaderData();
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">{character.name}'s Spell Interaction Complexity</h1>
+    <div className="container mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4">Spell Interaction Complexity Analysis</h2>
       
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Primary Spell</h3>
-          <select 
-            value={primarySpell?.id || ''}
-            onChange={(e) => {
-              const selected = availableSpells.find(
-                spell => spell.id === e.target.value
-              );
-              setPrimarySpell(selected || null);
-            }}
-            className="w-full p-2 border rounded mb-4"
-          >
-            <option value="">Select Primary Spell</option>
-            {availableSpells.map(spell => (
-              <option key={spell.id} value={spell.id}>
-                {spell.name} (Level {spell.level} {spell.school})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Secondary Spell (Optional)</h3>
-          <select 
-            value={secondarySpell?.id || ''}
-            onChange={(e) => {
-              const selected = availableSpells.find(
-                spell => spell.id === e.target.value
-              );
-              setSecondarySpell(selected || null);
-            }}
-            className="w-full p-2 border rounded mb-4"
-          >
-            <option value="">Select Secondary Spell (Optional)</option>
-            {availableSpells.map(spell => (
-              <option key={spell.id} value={spell.id}>
-                {spell.name} (Level {spell.level} {spell.school})
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {spellInteractions.map(({ primarySpell, secondarySpell, visualizationData }, index) => (
+          <div key={index} className="space-y-2">
+            <SpellInteractionComplexityDisplay 
+              primarySpell={primarySpell}
+              secondarySpell={secondarySpell}
+            />
+            <SpellInteractionVisualizationCard 
+              visualizationData={visualizationData}
+            />
+          </div>
+        ))}
       </div>
-
-      {primarySpell && (
-        <div className="mt-6">
-          <SpellInteractionComplexityDisplay
-            primarySpell={primarySpell}
-            secondarySpell={secondarySpell || undefined}
-            character={character}
-          />
-        </div>
-      )}
     </div>
   );
 }

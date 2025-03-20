@@ -1,75 +1,58 @@
 import React from 'react';
-import { SpellInteractionComplexityAnalyzer } from '~/modules/utils/spell-interaction-complexity-analyzer';
+import { SpellInteractionVisualizer } from '~/modules/utils/spell-interaction-visualization';
 import { Spell } from '~/modules/spells';
-import { Character } from '~/modules/characters';
 
 interface SpellInteractionComplexityDisplayProps {
   primarySpell: Spell;
-  secondarySpell?: Spell;
-  character?: Character;
+  secondarySpell: Spell;
 }
 
-export const SpellInteractionComplexityDisplay: React.FC<SpellInteractionComplexityDisplayProps> = ({
-  primarySpell,
-  secondarySpell,
-  character
+export const SpellInteractionComplexityDisplay: React.FC<SpellInteractionComplexityDisplayProps> = ({ 
+  primarySpell, 
+  secondarySpell 
 }) => {
-  const complexityAnalysis = SpellInteractionComplexityAnalyzer.analyzeSpellInteractionComplexity(
-    primarySpell,
-    secondarySpell,
-    character
+  const complexityData = SpellInteractionVisualizer.calculateInteractionComplexity(
+    primarySpell, 
+    secondarySpell
   );
 
   const getComplexityColor = (score: number) => {
-    if (score >= 8) return 'text-red-600';
-    if (score >= 6) return 'text-orange-600';
-    if (score >= 4) return 'text-yellow-600';
-    return 'text-green-600';
+    if (score >= 0.8) return 'bg-red-100 text-red-800';
+    if (score >= 0.6) return 'bg-orange-100 text-orange-800';
+    if (score >= 0.4) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-green-100 text-green-800';
   };
 
   return (
-    <div className="spell-interaction-complexity-display bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-xl font-bold mb-4">Spell Interaction Complexity</h3>
-
-      <div className="grid grid-cols-2 gap-4">
+    <div className={`
+      p-4 rounded-lg border 
+      ${getComplexityColor(complexityData.complexityScore)}
+    `}>
+      <h4 className="font-bold text-lg mb-2">
+        Spell Interaction Complexity
+      </h4>
+      
+      <div className="grid grid-cols-2 gap-2">
         <div>
-          <h4 className="font-semibold">Complexity Score</h4>
-          <p className={`
-            text-lg font-bold ${getComplexityColor(complexityAnalysis.complexityScore)}
-          `}>
-            {complexityAnalysis.complexityScore.toFixed(2)}/10
-          </p>
-        </div>
-
-        <div>
-          <h4 className="font-semibold">Primary Spell</h4>
-          <p>{primarySpell.name} (Level {primarySpell.level} {primarySpell.school})</p>
-        </div>
-
-        {secondarySpell && (
-          <div>
-            <h4 className="font-semibold">Secondary Spell</h4>
-            <p>{secondarySpell.name} (Level {secondarySpell.level} {secondarySpell.school})</p>
+          <p className="text-sm font-semibold">Overall Complexity</p>
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+            <div 
+              className="bg-purple-600 h-2.5 rounded-full" 
+              style={{ width: `${complexityData.complexityScore * 100}%` }}
+            ></div>
           </div>
-        )}
-      </div>
+          <span className="text-xs">
+            {(complexityData.complexityScore * 100).toFixed(0)}%
+          </span>
+        </div>
 
-      <div className="mt-4">
-        <h4 className="font-semibold mb-2">Interaction Risks</h4>
-        <ul className="list-disc list-inside text-red-700">
-          {complexityAnalysis.interactionRisks.map((risk, index) => (
-            <li key={index}>{risk}</li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="mt-4">
-        <h4 className="font-semibold mb-2">Strategic Potential</h4>
-        <ul className="list-disc list-inside text-green-700">
-          {complexityAnalysis.strategicPotential.map((strategy, index) => (
-            <li key={index}>{strategy}</li>
-          ))}
-        </ul>
+        <div>
+          <div className="text-xs">
+            <p>Level Difference: {(complexityData.complexityBreakdown.levelDifference * 100).toFixed(0)}%</p>
+            <p>School Interaction: {(complexityData.complexityBreakdown.schoolInteraction * 100).toFixed(0)}%</p>
+            <p>Resource Cost Variance: {(complexityData.complexityBreakdown.resourceCostVariance * 100).toFixed(0)}%</p>
+          </div>
+        </div>
       </div>
     </div>
   );

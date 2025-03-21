@@ -26,12 +26,11 @@ class ConfigManager {
       }
     }
 
-    // Load configuration from environment variables
+    // Remove JWT-related configuration
     this.config = {
       nodeEnv: process.env.NODE_ENV || 'development',
       port: process.env.PORT || '3000',
       corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-      jwtSecret: this.validateSecret(process.env.JWT_SECRET),
       errorTrackingEnabled: process.env.ERROR_TRACKING_ENABLED === 'true'
     };
   }
@@ -52,13 +51,6 @@ class ConfigManager {
     }
 
     return path.resolve(process.cwd(), '.env');
-  }
-
-  private validateSecret(secret?: string): string {
-    if (!secret || secret.length < 32) {
-      throw new Error('Invalid or missing secret. Provide a secure secret of at least 32 characters.');
-    }
-    return secret;
   }
 
   public get(key: string): string {

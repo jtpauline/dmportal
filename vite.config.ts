@@ -1,30 +1,17 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { remixVite } from '@remix-run/dev/vite';
-import path from 'path';
+import { remixVite } from '@remix-run/dev';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
-  plugins: [
-    react(),
-    remixVite()
-  ],
-  server: {
-    port: 3000,
-    host: '0.0.0.0',
-    open: true,
-    strictPort: true,
-    cors: true,
-    hmr: {
-      overlay: true
-    }
-  },
-  preview: {
-    port: 3000,
-    host: '0.0.0.0'
-  },
   resolve: {
     alias: {
-      '~': path.resolve(__dirname, './app')
+      '~/': '/app/',
+      '~/components/': '/app/components/',
+      '~/modules/': '/app/modules/'
     }
-  }
-});
+  },
+  plugins: [
+    remixVite(),
+    tsconfigPaths()
+  ]
+})

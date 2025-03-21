@@ -1,40 +1,71 @@
-# Welcome to Remix!
+# DM Platform - Advanced Campaign Management Tool
 
-- ð [Remix docs](https://remix.run/docs)
+## Project Overview
+A comprehensive Dungeons & Dragons campaign management platform with advanced machine learning insights and narrative generation.
 
-## Development
+## Tech Stack
+- React
+- Remix
+- TypeScript
+- Tailwind CSS
+- Vitest
+- Zod (Validation)
+- Framer Motion (Animations)
 
-Run the dev server:
+## Dependencies Breakdown
 
-```shellscript
+### Core Dependencies
+- React Ecosystem
+  - React
+  - React DOM
+  - Remix React
+  - React Hook Form
+  - Lucide React (Icons)
+
+### Styling & UI
+- Tailwind CSS
+- PostCSS
+- Autoprefixer
+- Framer Motion (Animations)
+
+### Validation & Utilities
+- Zod (Schema Validation)
+- Clsx (Conditional Classnames)
+
+### Development & Testing
+- Vitest
+- React Testing Library
+- TypeScript
+- ESLint
+- Prettier
+
+## Setup Instructions
+
+### Prerequisites
+- Node.js 18+
+- npm 9+
+
+### Installation
+```bash
+npm install
 npm run dev
 ```
 
-## Deployment
-
-First, build your app for production:
-
-```sh
-npm run build
+### Running Tests
+```bash
+npm test
+npm run test:coverage
 ```
 
-Then run the app in production mode:
+## Key Features
+- Character Management
+- Spell Interaction Analysis
+- Machine Learning Narrative Generation
+- Encounter Design
+- Spell Combo Recommendations
 
-```sh
-npm start
+## Performance Optimizations
+- Code-split components
+- Lazy loading
+- Memoization techniques
 ```
-
-Now you'll need to pick a host to deploy it to.
-
-### DIY
-
-If you're familiar with deploying Node applications, the built-in Remix app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-- `build/server`
-- `build/client`
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever css framework you prefer. See the [Vite docs on css](https://vitejs.dev/guide/features.html#css) for more information.

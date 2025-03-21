@@ -5,64 +5,49 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 function dependencyAudit() {
-  console.log('🔍 Dependency Audit and Cleanup');
+  console.log('🔍 Comprehensive Dependency Audit');
   
-  // Check package.json
   const packagePath = path.join(process.cwd(), 'package.json');
   const packageContent = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   
-  console.log('\n📦 Dependency Analysis:');
+  const requiredDependencies = [
+    '@remix-run/dev',
+    '@remix-run/node', 
+    '@remix-run/react', 
+    '@remix-run/serve',
+    'remix',
+    'react', 
+    'react-dom',
+    '@vitejs/plugin-react',
+    'vite',
+    'typescript',
+    'vite-tsconfig-paths'
+  ];
+
+  console.log('\n📦 Dependency Verification:');
   
-  // Count dependencies
-  const dependencies = packageContent.dependencies || {};
-  const devDependencies = packageContent.devDependencies || {};
-  
-  console.log(`Total Dependencies: ${Object.keys(dependencies).length}`);
-  console.log(`Total Dev Dependencies: ${Object.keys(devDependencies).length}`);
-  
-  // Identify potential issues
-  const outdatedDeps = [];
-  const potentialConflicts = [];
-  
-  try {
-    // Check for outdated dependencies
-    const outdatedOutput = execSync('npm outdated --json', { encoding: 'utf8' });
-    const outdatedDependencies = JSON.parse(outdatedOutput);
+  const missingDependencies = requiredDependencies.filter(dep => 
+    !packageContent.dependencies[dep] && !packageContent.devDependencies[dep]
+  );
+
+  if (missingDependencies.length > 0) {
+    console.log('🚨 Missing Dependencies:');
+    missingDependencies.forEach(dep => console.log(`  - ${dep}`));
     
-    Object.keys(outdatedDependencies).forEach(dep => {
-      outdatedDeps.push({
-        name: dep,
-        current: outdatedDependencies[dep].current,
-        wanted: outdatedDependencies[dep].wanted,
-        latest: outdatedDependencies[dep].latest
-      });
-    });
-  } catch (error) {
-    console.warn('⚠️ Unable to check for outdated dependencies');
+    console.log('\n🔧 Recommended Installation:');
+    console.log('Run: npm install ' + missingDependencies.join(' '));
+    
+    return {
+      status: 'INCOMPLETE',
+      missingDependencies
+    };
   }
-  
-  console.log('\n🚨 Potential Issues:');
-  if (outdatedDeps.length > 0) {
-    console.log('Outdated Dependencies:');
-    outdatedDeps.forEach(dep => {
-      console.log(`  - ${dep.name}: 
-        Current: ${dep.current} 
-        Wanted: ${dep.wanted} 
-        Latest: ${dep.latest}`);
-    });
-  }
-  
-  // Recommend cleanup actions
-  console.log('\n🧹 Recommended Actions:');
-  console.log('1. Remove unused dependencies');
-  console.log('2. Update outdated packages');
-  console.log('3. Verify peer dependencies');
-  
+
+  console.log('✅ All core dependencies are present');
   return {
-    outdatedDeps,
-    potentialConflicts
+    status: 'COMPLETE'
   };
 }
 
-// Run the audit
-dependencyAudit();
+const auditResult = dependencyAudit();
+process.exit(auditResult.status === 'INCOMPLETE' ? 1 : 0);

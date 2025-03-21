@@ -4,16 +4,19 @@
   "type": "module",
   "scripts": {
     "build": "remix vite:build",
-    "dev": "remix vite:dev --port 3001",
+    "dev": "remix vite:dev --port 3000",
     "start": "remix vite:serve",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "dependency:scan": "node scripts/dependency-audit.js",
+    "dependency:install": "npm install @remix-run/dev @remix-run/node @remix-run/react @remix-run/serve"
   },
   "dependencies": {
     "@remix-run/node": "^2.3.1",
     "@remix-run/react": "^2.3.1",
     "@remix-run/serve": "^2.3.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "remix": "^2.3.1"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.3.1",

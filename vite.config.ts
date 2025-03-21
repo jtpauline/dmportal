@@ -1,16 +1,17 @@
+import { vitePlugin as remix } from "@remix-run/dev";
 import { defineConfig } from 'vite';
-import remix from '@remix-run/dev/vite';
 import react from '@vitejs/plugin-react';
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   plugins: [
-    remix(),
-    react(),
-    tsconfigPaths()
-  ],
-  server: {
-    port: 3000,
-    strictPort: true
-  }
-});
+    remix({
+      // Add any Remix-specific configuration here if needed
+      // For example:
+      // appDirectory: "app",
+      // assetsBuildDirectory: "public/build",
+      // serverBuildPath: "build/index.js",
+      // publicPath: "/build/",
+    }),
+    react()
+  ]
+})

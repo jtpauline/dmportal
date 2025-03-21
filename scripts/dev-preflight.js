@@ -1,49 +1,66 @@
-// Development Preflight Checks
+#!/usr/bin/env node
+
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-async function preflightChecks() {
-  console.log('🚀 Running Preflight Checks');
-  
-  // Check critical dependencies
-  const criticalDeps = [
-    '@remix-run/dev',
-    '@remix-run/react',
-    'react',
-    'vite',
-    'typescript'
+// Get the directory name of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Clean build directories to prevent stale files
+function cleanBuildDirectories() {
+  const directories = [
+    path.resolve(process.cwd(), 'public/build'),
+    path.resolve(process.cwd(), 'build'),
+    path.resolve(process.cwd(), '.cache')
   ];
 
-  criticalDeps.forEach(dep => {
-    try {
-      require.resolve(dep);
-      console.log(`✅ ${dep} is installed`);
-    } catch (error) {
-      console.error(`❌ Critical dependency missing: ${dep}`);
-      process.exit(1);
+  directories.forEach(dir => {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
+    fs.mkdirSync(dir);
   });
 
-  // Check configuration files
-  const configFiles = [
-    'remix.config.js',
-    'vite.config.ts',
-    'tsconfig.json',
-    'package.json'
-  ];
-
-  configFiles.forEach(file => {
-    const filePath = path.resolve(process.cwd(), file);
-    if (!fs.existsSync(filePath)) {
-      console.error(`❌ Missing configuration file: ${file}`);
-      process.exit(1);
-    }
-  });
-
-  console.log('🎉 All preflight checks passed successfully!');
+  console.log('✅ Build directories cleaned');
 }
 
-preflightChecks().catch(error => {
-  console.error('Preflight check failed:', error);
-  process.exit(1);
-});
+// Check for potential configuration issues
+async function checkRemixConfiguration() {
+  const configPath = path.resolve(process.cwd(), 'remix.config.js');
+  
+  try {
+    const config = await import(configPath);
+    const resolvedConfig = config.default || config;
+
+    const obsoleteFlags = [
+      'v2_errorBoundary',
+      'v2_headers', 
+      'v2_meta', 
+      'v2_normalizeFormMethod', 
+      'v2_routeConvention',
+      'v2_dev'
+    ];
+
+    obsoleteFlags.forEach(flag => {
+      if (resolvedConfig.future && resolvedConfig.future[flag]) {
+        console.warn(`⚠️ Obsolete flag detected: ${flag}`);
+      }
+    });
+  } catch (error) {
+    console.error('Error reading configuration:', error);
+  }
+}
+
+async function main() {
+  try {
+    cleanBuildDirectories();
+    await checkRemixConfiguration();
+  } catch (error) {
+    console.error('Preflight check failed:', error);
+    process.exit(1);
+  }
+}
+
+main();

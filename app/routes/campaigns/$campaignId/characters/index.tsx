@@ -1,21 +1,31 @@
-import { useParams } from '@remix-run/react';
+import { useOutletContext, Link } from "@remix-run/react";
+import { Campaign, CampaignManager } from "~/modules/campaign/campaign-core";
 
-export default function CampaignCharactersIndex() {
-  const { campaignId } = useParams();
+export default function CampaignCharactersPage() {
+  const { campaign, campaignManager } = useOutletContext<{
+    campaign: Campaign;
+    campaignManager: CampaignManager;
+  }>();
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Characters for Campaign {campaignId}</h1>
-      <p>Select or create a character for this campaign.</p>
-    </div>
-  );
-}
-
-export function ErrorBoundary() {
-  return (
-    <div className="p-4 bg-red-100 text-red-800">
-      <h1 className="text-xl font-bold">Error Loading Characters</h1>
-      <p>Unable to load characters for this campaign. Please try again later.</p>
+    <div className="campaign-characters">
+      <h2>Characters in {campaign.name}</h2>
+      {campaign.characters.length === 0 ? (
+        <p>No characters in this campaign yet.</p>
+      ) : (
+        <ul>
+          {campaign.characters.map(character => (
+            <li key={character.id}>
+              <Link to={`/campaigns/${campaign.id}/characters/${character.id}`}>
+                {character.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link to={`/campaigns/${campaign.id}/characters/new`}>
+        Add New Character
+      </Link>
     </div>
   );
 }
